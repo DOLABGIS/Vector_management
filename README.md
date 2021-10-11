@@ -3,6 +3,6 @@
 ## 运行项目
 npm install <br>
 npm run dev
-##运行后端
-cd ./dogis-api
+## 运行后端
+cd ./dogis-api <br>
 python app.py
