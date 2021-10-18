@@ -1,8 +1,29 @@
-# Vector_management
-矢量数据编辑和管理
-## 运行项目
-npm install <br>
-npm run dev
-## 运行后端
-cd ./dogis-api <br>
-python app.py
+# client
+
+## Project setup
+```
+npm install
+```
+
+### Compiles and hot-reloads for development
+```
+npm run serve
+```
+
+### Compiles and minifies for production
+```
+npm run build
+```
+
+### Run your tests
+```
+npm run test
+```
+
+### Lints and fixes files
+```
+npm run lint
+```
+
+### Customize configuration
+See [Configuration Reference](https://cli.vuejs.org/config/).

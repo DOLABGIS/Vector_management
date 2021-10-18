@@ -1,18 +1,18 @@
 <template>
-	<div id="map">
-    <select-layer class="mapselect" :map="map"></select-layer>
-    <openfile v-if="isShow" id='openfile'></openfile>
-   <div  id="info-box" >
-		<v-card tile class="quarkgis-layer-panel" color="#4a5064">
-			<div class="quarkgis-layer-panel-title">
-			<span>Layers</span>
+<v-app  style="width: 100%; height: 100%;position:relative;">
+	<div id="olmap" ref="olmap" style="width: 100%; height: 100%;">
+		<!-- <panel>
+		</panel> -->
+		<div  id="info-box" >
+		
+		<v-card tile class="layer-panel" color="#4a5064" draggable="true">
+			<div class="layer-panel-title">
+			<span>图层</span>
 			</div>
 			<v-divider></v-divider>
-			<div class="quarkgis-layer-panel-toolbar">
+			<div class="layer-panel-toolbar">
 			<v-toolbar flat color="#4a5064" dense height="40">
-				<div class="quarkgis-layer-panel-toolbar-btns">
-
-
+				<div class="layer-panel-toolbar-btns">
 				<v-btn x-small icon :disabled="enableVisible" @click="setVisibility">
 					<v-icon>{{ isVisible ? "mdi-eye-off" : "mdi-eye"}}</v-icon>
 				</v-btn>
@@ -30,14 +30,14 @@
 				</v-btn>
 				</div>
 				<v-divider vertical></v-divider>
-				<div class="quarkgis-layer-panel-toolbar-layer-info">
+				<div class="layer-panel-toolbar-layer-info">
 				<v-btn text x-small>{{visibleLayerNumber}}/{{layerNumber}} <v-icon x-small>mdi-filter</v-icon></v-btn>
 				</div>
 			</v-toolbar>
 			<v-divider></v-divider>
 			</div>
-			<div class="quarkgis-layer-panel-layers">
-			<v-list dense>
+			<div class="layer-panel-layers">
+			<v-list dense  color="#4a5064" >
 				<v-list-item-group
 					v-model="selectedItem"
 					color="primary"
@@ -58,225 +58,447 @@
 			</v-list>
 			</div>
 		</v-card>
+		
 		</div>
-		<el-row class="opebutton">
-			<el-button type="primary" @click="drawPolygon()">绘制区域</el-button>
-			<el-button type="primary" @click="drawPoint()">绘制中心点</el-button>
-			<el-button type="danger" @click="delectDraw()">删除绘制</el-button>
-            <el-button type="saveDraw" @click="saveDraw()">保存绘制</el-button>
+		<el-row :gutter="20">
+			<el-col :span="6">
+				<div class="grid-content bg-purple"></div>
+			</el-col>
+			<el-col :span="6" :offset="6">
+				<div class="grid-content bg-purple"></div>
+			</el-col>
 		</el-row>
+		<el-select class="mapselect" v-model="value" placeholder="切换地图底图" @change="changeBaseMap(value)">
+			<el-option-group v-for="group in options" :key="group.label" :label="group.label">
+				<el-option
+					v-for="item in group.options"
+					:key="item.value"
+					:label="item.label"
+					:value="item.value"
+				></el-option>
+			</el-option-group>
+		</el-select>
+
+		<el-select class="geometryType" v-model="value1" placeholder="选择绘制类型" @change="selectGeometry(value1)">
+            <el-option
+                v-for="item in geometryType"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+            ></el-option>
+		</el-select>
+		<el-row class="opebutton">
+			<el-button type="primary" @click="startDraw()">开始绘制</el-button>
+			<el-button type="endDraw" @click="endDraw()">结束绘制</el-button>
+			<el-button type="saveDraw" @click="saveDraw()">保存绘制</el-button>
+			<el-button type="delectDraw" @click="delectDraw()">删除绘制</el-button>
+			<el-button type="danger" @click="editDraw()">编辑绘制</el-button>
+		</el-row>
+		
+		<propertiPanel  color="#4a5064" :visible="isPropertiesPanelVisible"
+                                  :properties="selectedFeatureProperties"
+								  :titles="title"></propertiPanel>
+		<!-- <el-checkbox class="isedit" v-model="checked">启用WFS编辑</el-checkbox> -->
+
 	</div>
+	</v-app>
 </template>
+
 <script>
-import mapBoxGl from 'mapbox-gl'
-import {
-	CircleMode,
-	DragCircleMode,
-	DirectMode,
-	SimpleSelectMode
-} from 'mapbox-gl-draw-circle'
-import MapboxDraw from '@mapbox/mapbox-gl-draw'
-import 'mapbox-gl/dist/mapbox-gl.css'
-import SelectLayer from '../components/MapBox/SelectLayer'
-import turf from 'turf'
-import mapSources from './MapBox/modules/mapstyles'
-import Openfile from './upload.vue'
-import axios from 'axios';
+import Map from 'ol/Map'
+import View from 'ol/View'
+import { Draw, Modify, Snap, Select} from 'ol/interaction'
+import { Tile as TileLayer, Vector as VectorLayer } from 'ol/layer'
+import { OSM, TileArcGISRest, Vector as VectorSource } from 'ol/source'
+import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style'
+import XYZ from 'ol/source/XYZ'
+import { transform } from 'ol/proj'
+import mapSources from './OpenLayers/modules/maplist'
+import propertiPanel from './OpenLayers/PropertiesPanel.vue'
 import Bus from '../assets/bus'
-import { MapboxExportControl, Size, PageOrientation, Format, DPI} from "@watergis/mapbox-gl-export";
-import '@watergis/mapbox-gl-export/css/styles.css';
+import GeoJSON from "ol/format/GeoJSON"
+import jsondata from '../../src/assets/data/wuhan.json'
+import axios from 'axios'
+// import panel from '../panel.vue'
 export default {
+	components: {propertiPanel},
 	data() {
 		return {
-            isShow:false,
-            map: null,
-            draw: null,
-            layer:[],
-            enableAddData: false,
-            enableEdit: false,
-            enableVisible: false,
-            isVisible: 'none',
-            isEditable: false,
-            enableDelete: false,
-            enableSelect: true,
-            enableQuery: false,
-            openDataSourceDialog: false,
-            saveEditingDialog: false,
-            tab: null,
-            databases: ["PostgreSql", "SQL Server", "MySQL", "ORACLE"],
-            webServiceType: ["WMTS", "WMS", "WFS"],
-            serverType: ["carmentaserver", "geoserver", "mapserver", "qgis"],
-            layerName: "",
-            selectedWebService: "",
-            webServiceUrl: "",
-            selectedServerType: "geoserver",
-            timeout: 1000,
-            snackbar: false,
-            text: "",
-            color: "teal",
-            wmsLayers: "",
-            wmtsLayer: "0",
-            selectedItem: 0,
-            items: [],
-            userFiles: ["All"],
-            selectedUserLayer: "",
-            geometryType: ["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon", "GeometryCollection"],
-            layerFields: [],
-            fieldName: "",
-            dataType: ["integer", "double", "character varying(255)"],
-            selectedDataType: "",
-            newLayerName: "",
-            selectedGeometryType: "",
-            layerNumber: 0,
-            visibleLayerNumber: 0,
-            singleClickSelect: undefined,
-            modify: undefined,
-            draw: undefined,
-            snap: undefined,
-            isPropertiesPanelVisible: false,
-            selectedFeatureProperties: [],
-            addedFeatures: [],
-            modifiedFeatures: {}
+			checked: false,
+			openDataSourceDialog:true,
+			layerName: "",
+			selectedItem: 0,
+      		items: [],
+			geometryType: [
+				{
+					value: 'Point',
+					label: 'Point'
+				},
+				{
+					value: 'LineString',
+					label: 'LineString'
+				},
+				{
+					value: 'Polygon',
+					label: 'Polygon'
+				},
+				{
+					value: 'Circle',
+					label: 'Circle'
+				}
+			],
+			options: mapSources.basemapLabel,
+			value: '',
+			value1: '',
+			googledz: mapSources.googledz,
+			googledx: mapSources.googledx,
+			googlewx: mapSources.googlewx,
+			tdtdz: mapSources.tdtdz,
+			tdtlabeldz: mapSources.tdtlabeldz,
+			tdtwx: mapSources.tdtwx,
+			tdtlabelwx: mapSources.tdtlabelwx,
+			baidudz: mapSources.baidudz,
+			baiduwx: mapSources.baiduwx,
+			baidulabelwx: mapSources.baidulabelwx,
+			gaodedz: mapSources.gaodedz,
+			gaodewx: mapSources.gaodewx,
+			gaodelabelwx: mapSources.gaodelabelwx,
+			qqmapdz: mapSources.qqmapdz,
+			qqmapdx: mapSources.qqmapdx,
+			qqmaplabledx: mapSources.qqmaplabledx,
+			qqmapwx: mapSources.qqmapwx,
+			qqmaplablewx: mapSources.qqmaplablewx,
+			geoqcs: mapSources.geoqcs,
+			geoqns: mapSources.geoqns,
+			geoqhs: mapSources.geoqhs,
+			geoqlh: mapSources.geoqlh,
+			proj: 'EPSG:4326', //定义wgs84地图坐标系
+			proj_m: 'EPSG:3857', //定义墨卡托地图坐标系
+			map: null,
+			mapLayer: null,
+			mapLayerlabel: null,
+			source: null,
+			vector: null,
+			draw: null,
+			snap: null,
+			singleClickSelect: undefined,
+			layerNumber: 0,
+      		visibleLayerNumber: 0,
+			isPropertiesPanelVisible: false,
+			selectedFeatureProperties: [],
+			addedFeatures: [],
+      		modifiedFeatures: {},
+			selectedtype:'Polygon',
+			enableAddData: false,
+			enableEdit: false,
+			enableVisible: false,
+			isVisible: false,
+			isEditable: false,
+			enableDelete: false,
+			enableSelect: true,
+			enableQuery: false,
+			openDataSourceDialog: false,
+			saveEditingDialog: false,
+			properties:null,
+			title:null,
 		}
 	},
-  components: {
-		'select-layer': SelectLayer,
-		'Openfile': Openfile,
-    },
 	created() {
-     Bus.$on('send',(val)=>{
-            this.isShow = val
+		Bus.$on('send',(val)=>{
+				this.isShow = val
 
-        })
-      Bus.$on('geojson',(val)=>{
-        this.layer.push(val)
-        // this.init(val);
-        this.upload(val);      
-        })  
-  },
+			})
+		Bus.$on('geojson',(val)=>{
+				
+			}) 
+		//this.createMap()
+	},
 	mounted() {
-		this.init(false)
+		this.initMap();
+		
 	},
 	methods: {
-		init() {
-			mapBoxGl.accessToken =
-				'pk.eyJ1IjoibWFwYm94bWF4IiwiYSI6ImNqbnY4MHM3azA2ZmkzdnBnMThvNzRoZ28ifQ.IffqPZGkhcdPjnZ2dmSO6w'
-			this.map = new mapBoxGl.Map({
-				container: 'map',
-				style: {
-					version: 8,
-					glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
-					sources: {
-						source_tdtvec_tiles:
-							mapSources.baseMapUrl.source_tdtvec_tiles,
-						source_tdtcva_tiles:
-							mapSources.baseMapUrl.source_tdtcva_tiles
-					},
-					layers: [
-						mapSources.baseLayerConfig.tdtvec_tiles,
-						mapSources.baseLayerConfig.tdtcva_tiles
-					]
-				},
-				center: [114.356, 30.624],
-				zoom: 8,
-				minZoom: 5,
-				maxZoom: 17
-				// pitch: 40,
-				// bearing: 1
+		initMap: function() {
+			//初始化map对象
+			this.map = new Map({
+				target: 'olmap',
+				projection: this.proj,
+				//interactions: ol.interaction.defaults().extend([mapDragInteraction]),
+				view: new View({
+					center: transform(
+						[114.356, 30.624],
+						this.proj,
+						this.proj_m
+					),
+					zoom: 8
+				})
 			})
 
-      this.items= this.toList();
-      // console.log(this.items);
-			this.map.addControl(new mapBoxGl.NavigationControl(), 'top-right')
-			this.map.addControl(
-				new mapBoxGl.ScaleControl({ maxWidth: 80, unit: 'metric' }),
-				'bottom-right'
-			)
-			this.map.addControl(
-				new mapBoxGl.FullscreenControl({
-					container: document.querySelector('map')
+			//初始化地图图层
+			this.mapLayer = new TileLayer({
+				title: "OpenStreetMap",
+				source: this.tdtdz,
+				projection: this.proj_m
+			})
+			//初始化标签图层
+			this.mapLayerlabel = new TileLayer({
+				title: "label",
+				source: this.tdtlabeldz,
+				projection: this.proj_m
+			})
+			console.log(jsondata);
+			this.vectorla  = new VectorLayer({
+				title:"wuhan",
+				source:new VectorSource({
+					// url:jsondata,
+					// format: new GeoJSON()
+					features: new GeoJSON().readFeatures(jsondata,{
+    					featureProjection:"EPSG:3857"
+					})
 				}),
-				'top-right'
-			)
-// create control with specified options
-      this.map.addControl(new MapboxExportControl({
-          PageSize: Size.A3,
-          PageOrientation: PageOrientation.Portrait,
-          Format: Format.PNG,
-          DPI: DPI[96],
-          Crosshair: true,
-          PrintableArea: true
-      }), 'top-right');
-			this.draw = new MapboxDraw({
-				displayControlsDefault: false,
-				controls: {
-					polygon: true,
-					point: true,
-					trash: true
-				}
-			})
+				projection: this.proj_m,
+				zIndex:10,
+				style:  new Style({
+              stroke: new Stroke({
+                  color: 'rgba(121,121,125,1.0)',
+                  lineDash: null,
+                  lineCap: 'butt',
+                  lineJoin: 'miter',
+                  width: 0,
+              }),
+              fill: new Fill({
+                color: '#0d0887',
+              }),
+			})})
+			//将图层加载到地图对象
+			this.map.addLayer(this.mapLayer)
+			this.map.addLayer(this.mapLayerlabel)
+			this.map.addLayer(this.vectorla)
 
-			this.map.addControl(this.draw)
-      //       this.map.on('draw.update', this.updateArea)
-      // this.map.on('draw.create', this.updateArea);
-      // this.map.on('draw.delete', this.updateArea);
-        },
-    upload(val){
-    axios.get('api/uploadshp').then((response)=>{
-        var polys=response.data;
-        console.log(response.data);
-        this.map.on('load',() => {
-          this.map.addLayer({
-            'id': val,
-            'type': 'fill',
-            'source': {
-              'type':'geojson',
-              'data':polys
-            },
-            'layout': {},
-            'paint': {
-            'fill-color': '#088',
-            'fill-opacity': 0.8
-          }
-          });
-        console.log('fis',this.map.getStyle());
-        });
-      });
-      this.toList();
-    },
-    toList() {
 			let layerList = [];
-      this.map.on('load', () => {
-        // console.log(this.map.getStyle());
-			this.map.getStyle().layers.forEach(layer => {
+			this.map.getLayers().forEach(layer => {
 				layerList.push({
-					name: layer['id'],
+					name: layer.get("title"),
 					layer: layer,
 					visible: true,
 					editable: true
 				});
 			});
-      });
+			console.log('tolist');
 			layerList.reverse();
 			console.log(layerList);
-			return layerList;
-			},
-      // 设置图层可见性
-		setVisibility() {
-      const visibility = this.map.getLayoutProperty(
-        this.items[this.selectedItem].layer.id,
-        'visibility'
-        ); 
+			this.items = layerList;
+			console.log(this.items);
+			this.layerNumber = this.items.length;
+    		this.visibleLayerNumber = this.items.length;
+		},
+		/******************地图切换方法***************/
+		changeBaseMap: function(value) {
+			this.map.removeLayer(this.mapLayer)
+			this.map.removeLayer(this.mapLayerlabel)
+			switch (value) {
+				case 'googledz':
+					this.mapLayer = new TileLayer({
+						source: this.googledz,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'googledx':
+					this.mapLayer = new TileLayer({
+						source: this.googledx,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'googlewx':
+					this.mapLayer = new TileLayer({
+						source: this.googlewx,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'tdtdz':
+					this.mapLayer = new TileLayer({
+						source: this.tdtdz,
+						projection: this.proj
+					})
+					this.mapLayerlabel = new TileLayer({
+						source: this.tdtlabeldz,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					this.map.addLayer(this.mapLayerlabel)
+					break
+				case 'tdtwx':
+					this.mapLayer = new TileLayer({
+						source: this.tdtwx,
+						projection: this.proj
+					})
+					this.mapLayerlabel = new TileLayer({
+						source: this.tdtlabelwx,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					this.map.addLayer(this.mapLayerlabel)
+					break
+				case 'gaodedz':
+					this.mapLayer = new TileLayer({
+						source: this.gaodedz,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'gaodewx':
+					this.mapLayer = new TileLayer({
+						source: this.gaodewx,
+						projection: this.proj
+					})
+					this.mapLayerlabel = new TileLayer({
+						source: this.gaodelabelwx,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					this.map.addLayer(this.mapLayerlabel)
+					break
+				case 'baidudz':
+					this.mapLayer = new TileLayer({
+						source: this.baidudz,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'baiduwx':
+					this.mapLayer = new TileLayer({
+						source: this.baiduwx,
+						projection: this.proj
+					})
+					this.mapLayerlabel = new TileLayer({
+						source: this.baidulabelwx,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					this.map.addLayer(this.mapLayerlabel)
+					break
+				case 'qqmapdz':
+					this.mapLayer = new TileLayer({
+						source: this.qqmapdz,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'qqmapdx':
+					this.mapLayer = new TileLayer({
+						source: this.qqmapdx,
+						projection: this.proj
+					})
+					this.mapLayerlabel = new TileLayer({
+						source: this.qqmaplabledx,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					this.map.addLayer(this.mapLayerlabel)
+					break
+				case 'qqmapwx':
+					this.mapLayer = new TileLayer({
+						source: this.qqmapwx,
+						projection: this.proj
+					})
+					this.mapLayerlabel = new TileLayer({
+						source: this.qqmaplablewx,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					this.map.addLayer(this.mapLayerlabel)
+					break
+				case 'geoqcs':
+					this.mapLayer = new TileLayer({
+						source: this.geoqcs,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'geoqns':
+					this.mapLayer = new TileLayer({
+						source: this.geoqns,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'geoqhs':
+					this.mapLayer = new TileLayer({
+						source: this.geoqhs,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+				case 'geoqlh':
+					this.mapLayer = new TileLayer({
+						source: this.geoqlh,
+						projection: this.proj
+					})
+					this.map.addLayer(this.mapLayer)
+					break
+			}
+		},
+		/******************选择绘制类型**************/
+		selectGeometry: function(value) {
+			switch (value) {
+				case 'Point':
+					this.selectedtype ='Point';
+					break
+				case 'LineString':
+					this.selectedtype ='LineString';
+					break
+				case 'Polygon':
+					this.selectedtype ='Polygon';
+					break
+				case 'Circle':
+					this.selectedtype ='Circle';
+					break
+			}
+			console.log(this.draw);
+		},
+		// modifyInteraction
+		wfsEdit: function() {
+			let modify = new Modify({
+				source: this.source
+			})
+			this.map.addInteraction(modify)
+		},
 
-      if(visibility=='visibility'){
-        this.map.setLayoutProperty(this.items[this.selectedItem].layer.id,'visibility','none');
-        this.items[this.selectedItem].visible = 'none';
-      }
-      else{
-        this.map.setLayoutProperty(this.items[this.selectedItem].layer.id,'visibility','visibility');
-        this.items[this.selectedItem].visible = 'visibility';
-      }
-			const visibleLayers = this.items.filter(item => item.visible === 'visibility');
+		addInteractions: function(value) {
+			this.draw = new Draw({
+				source: this.source,
+				style: new Style({
+					stroke: new Stroke({
+						color: '#1E90FF',
+						lineDash: [2,4,6,8],
+						width: 2
+					})
+				}),
+				type: value
+			})
+			this.map.addInteraction(this.draw)
+			this.snap = new Snap({
+				source: this.source
+			})
+			this.map.addInteraction(this.snap)
+		},
+
+		selectInteraction: function(){
+			let select = new Select({
+				source: this.source
+			})
+			this.map.addInteraction(select)
+		},
+		// 设置图层可见性
+		setVisibility() {
+			console.log(this.isVisible);
+			this.items[this.selectedItem].layer.setVisible(this.isVisible);
+			this.items[this.selectedItem].visible = this.isVisible;
+			this.isVisible = !this.isVisible;
+			const visibleLayers = this.items.filter(item => item.visible === true);
 			this.visibleLayerNumber = visibleLayers.length;
 		},
 		//删除图层
@@ -304,9 +526,9 @@ export default {
 			if (this.enableSelect) {
 				this.enableQuery = !this.enableQuery;
 				if (this.enableQuery) {
-				this.$refs.MapComponent.enableQueryProperties();
+				this.enableQueryProperties();
 				} else {
-				this.$refs.MapComponent.removeQueryProperties();
+				this.removeQueryProperties();
 				}
 			} else {
 				this.enableQuery = false;
@@ -322,14 +544,8 @@ export default {
 				this.map.removeInteraction(this.singleClickSelect);
 			}
 			console.log("Remove Selection");
-		},
+			},
 		enableEditing(selectedLayer, selectedLayerType = "") {
-			// if (this.singleClickSelect) {
-			//   this.modify = new Modify({
-			//     features: this.singleClickSelect.getFeatures()
-			//   });
-			//   this.map.addInteraction(this.modify);
-			// }
 			let vectorSource = selectedLayer.getSource();
 			this.modify = new Modify({
 				features: this.singleClickSelect.getFeatures()
@@ -364,219 +580,279 @@ export default {
 			});
 			this.map.addInteraction(this.snap);
 			console.log("Enable Editing");
-		},
-		saveEditingAutomaticallyByTimeInterval() {
-		// TODO
-		},
-		saveEditing(modifiedLayerName, modifiedLayerObject) {
-		let features = modifiedLayerObject.getSource().getFeatures();
-		console.log("modified layername ", modifiedLayerName, " geometry number: ", features.length, " features: ", features);
-		const data = new GeoJSON().writeFeaturesObject(features, {
-			featureProjection: getProjection("EPSG:3857")
-		});
-		console.info("generated geojson ", data);
-		this.$postJson(`/data/postTrueJson?filename=${modifiedLayerName}&apikey=${getLocalStorage("jwt_token")}`, data).then(() => {
-			console.info("Save Data Successfully!");
-		}).catch(() => {
-			console.warn("Error: Fail to save data.")
-		});
-		// this.$postJson(`/postgis/insertJDBC?table=${modifiedLayerName}`, data).then(() => {
-		//   console.info("Save Data Successfully!");
-		// }).catch(() => {
-		//   console.warn("Error: Fail to save data.")
-		// });
-		},
-		saveAddEditing(modifiedLayerName) {
-		console.info(this.addedFeatures);
-		if (this.addedFeatures.length > 0) {
-			const addedData = new GeoJSON().writeFeaturesObject(this.addedFeatures, {
-			featureProjection: getProjection("EPSG:3857")
-			});
-			const features = {
-			"features": addedData["features"]
-			}
-			console.info(features);
-			this.$postJson(`/postgis/insertJDBC?table=${modifiedLayerName}`, features).then(() => {
-			console.info("Save Data Successfully!");
-			}).catch(() => {
-			console.warn("Error: Fail to save data.")
-			});
-		}
-		console.log("modified features number: ", Object.keys(this.modifiedFeatures).length);
-		if (Object.keys(this.modifiedFeatures).length > 0) {
-			Object.keys(this.modifiedFeatures).forEach((id) => {
-			const modifiedData = this.modifiedFeatures[id].getProperties();
-			delete modifiedData.id;
-			delete modifiedData.geometry;
-			const modifiedGeometry = new GeoJSON().writeGeometryObject(this.modifiedFeatures[id].getGeometry(), {
+			},
+			saveEditingAutomaticallyByTimeInterval() {
+			// TODO
+			},
+			saveEditing(modifiedLayerName, modifiedLayerObject) {
+			let features = modifiedLayerObject.getSource().getFeatures();
+			console.log("modified layername ", modifiedLayerName, " geometry number: ", features.length, " features: ", features);
+			const data = new GeoJSON().writeFeaturesObject(features, {
 				featureProjection: getProjection("EPSG:3857")
 			});
-			modifiedData["geometry"] = modifiedGeometry;
-			console.info(JSON.stringify(modifiedData));
-			this.$postJson(`/postgis/updateJDBC?table=${modifiedLayerName}&where=id=${id}`, modifiedData).then(() => {
+			console.info("generated geojson ", data);
+			this.$postJson(`/data/postTrueJson?filename=${modifiedLayerName}&apikey=${getLocalStorage("jwt_token")}`, data).then(() => {
 				console.info("Save Data Successfully!");
 			}).catch(() => {
 				console.warn("Error: Fail to save data.")
 			});
-			})
-			this.modifiedFeatures = {};
-		}
-		},
-		removeEditing() {
-		if (this.modify) {
-			this.map.removeInteraction(this.modify);
-		}
-		if (this.draw) {
-			this.map.removeInteraction(this.draw);
-		}
-		if (this.snap) {
-			this.map.removeInteraction(this.snap);
-		}
-		console.log("Remove Editing");
-		},
-		enableQueryProperties() {
-		console.info("Enable Query");
-		if (this.singleClickSelect) {
-			this.singleClickSelect.on('select', (e) => {
-			if (this.selectedFeatureProperties) {
-				this.selectedFeatureProperties = [];
+
+			},
+			saveAddEditing(modifiedLayerName) {
+			console.info(this.addedFeatures);
+			if (this.addedFeatures.length > 0) {
+				const addedData = new GeoJSON().writeFeaturesObject(this.addedFeatures, {
+				featureProjection: getProjection("EPSG:3857")
+				});
+				const features = {
+				"features": addedData["features"]
+				}
+				console.info(features);
+				this.$postJson(`/postgis/insertJDBC?table=${modifiedLayerName}`, features).then(() => {
+				console.info("Save Data Successfully!");
+				}).catch(() => {
+				console.warn("Error: Fail to save data.")
+				});
 			}
-			const feature = e.selected[0];
-			if (feature) {
-				console.info("Got Selected Features! ", feature)
-				this.isPropertiesPanelVisible = true;
-				Object.getOwnPropertyNames(feature.getProperties()).forEach(key => {
-				key = key.toString();
-				if (key !== "geometry") {
-					const value = feature.getProperties()[key] || "null";
-					this.selectedFeatureProperties.push({
-					id: shortid(),
-					name: key,
-					value: value
+			console.log("modified features number: ", Object.keys(this.modifiedFeatures).length);
+			if (Object.keys(this.modifiedFeatures).length > 0) {
+				Object.keys(this.modifiedFeatures).forEach((id) => {
+				const modifiedData = this.modifiedFeatures[id].getProperties();
+				delete modifiedData.id;
+				delete modifiedData.geometry;
+				const modifiedGeometry = new GeoJSON().writeGeometryObject(this.modifiedFeatures[id].getGeometry(), {
+					featureProjection: getProjection("EPSG:3857")
+				});
+				modifiedData["geometry"] = modifiedGeometry;
+				console.info(JSON.stringify(modifiedData));
+				this.$postJson(`/postgis/updateJDBC?table=${modifiedLayerName}&where=id=${id}`, modifiedData).then(() => {
+					console.info("Save Data Successfully!");
+				}).catch(() => {
+					console.warn("Error: Fail to save data.")
+				});
+				})
+				this.modifiedFeatures = {};
+			}
+			},
+			removeEditing() {
+			if (this.modify) {
+				this.map.removeInteraction(this.modify);
+			}
+			if (this.draw) {
+				this.map.removeInteraction(this.draw);
+			}
+			if (this.snap) {
+				this.map.removeInteraction(this.snap);
+			}
+			console.log("Remove Editing");
+			},
+			enableQueryProperties() {
+			console.info("Enable Query");
+			console.log(this.items[this.selectedItem].name);
+			this.selectedFeatureProperties = [[11,22],[33,44]]
+			this.isPropertiesPanelVisible = true;
+			this.title=['nae','dw']
+			// axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
+			// 	this.isPropertiesPanelVisible = true;
+			// 	this.properties = response.data['content']
+			// 	this.titles=response.data['title']
+			// });
+
+			if (this.singleClickSelect) {
+				this.singleClickSelect.on('select', (e) => {
+				if (this.selectedFeatureProperties) {
+					this.selectedFeatureProperties = [];
+				}
+				const feature = e.selected[0];
+				if (feature) {
+					console.info("Got Selected Features! ", feature)
+					this.isPropertiesPanelVisible = true;
+					Object.getOwnPropertyNames(feature.getProperties()).forEach(key => {
+					key = key.toString();
+					if (key !== "geometry") {
+						const value = feature.getProperties()[key] || "null";
+						this.selectedFeatureProperties.push({
+						id: shortid(),
+						name: key,
+						value: value
+						});
+					}
 					});
+				} else {
+					console.warn("Nothing Selected!");
+					this.isPropertiesPanelVisible = false;
 				}
 				});
-			} else {
-				console.warn("Nothing Selected!");
-				this.isPropertiesPanelVisible = false;
 			}
+			},
+			removeQueryProperties() {
+			console.info("Remove Query Properties")
+			this.isPropertiesPanelVisible = false;
+			},
+		// 开始绘制
+		startDraw: function() {
+			if(this.draw == null){
+			this.source = new VectorSource()
+			this.vector = new VectorLayer({
+				source: this.source,
+				style: new Style({
+					fill: new Fill({
+						color: 'rgba(30, 144, 255, 0.3)'
+					}),
+					stroke: new Stroke({
+						color: '#1E90FF',
+						width: 2
+					})
+				})
+			})
+			this.map.addLayer(this.vector)
+			this.wfsEdit()
+			if(this.selectedtype=='Point'){
+				this.addInteractions('Point');
+				
+			}
+			else if(this.selectedtype=='LineString'){
+				this.addInteractions('LineString');
+				
+			}
+			else if(this.selectedtype=='Polygon'){
+				this.addInteractions('Polygon');
+				
+			}
+			else if(this.selectedtype=='Circle'){
+				this.addInteractions('Circle');
+				
+			}
+			}
+			
+			// this.addInteractions('Polygon')
+		},
+		// 结束绘制
+		endDraw: function() {
+			if (this.draw) {
+				this.map.removeInteraction(this.draw)
+				this.map.removeInteraction(this.snap)
+				console.log('shanchu')
+			}
+		},
+		// 保存绘制
+		saveDraw: function() {
+			if (this.vector) {
+				this.$prompt('请输入图层名', '提示', {
+          		confirmButtonText: '确定',
+          		cancelButtonText: '取消',
+        		}).then(({ value }) => {
+					this.map.removeLayer(this.vector)
+         			this.layerName = value;
+					this.vector.values_.title =value;
+					console.log(this.vector);
+					this.map.addLayer(this.vector);
+					console.log('aa',this.map.getLayers());
+					this.items = this.toList();
+					this.endDraw();
+					// let features = this.source.getFeatures()
+					// console.log(features);
+					// if (features.length > 0) {
+					// 	for (var j = 0; j < features.length; j++) {
+					// 		// 将3857坐标转换为4326坐标
+					// 		let geo = features[j].getGeometry().transform(this.proj_m, this.proj)
+					// 		// let geo = features[j].getGeometry()
+					// 			axios.post('api/uploadgeojson',geo).then((response)=>{
+					// 				alert("保存成功");
+					// 			});
+					// 		alert(geo)
+					// 	}
+					// }
+  	
+        		}).catch(() => {
+					this.$message({
+					type: 'info',
+					message: '取消输入'
+				});       
+				});
+
+			}
+		},
+		// 删除绘制
+		delectDraw: function() {
+			if (this.draw) {
+				this.map.removeInteraction(this.draw)
+				this.map.removeInteraction(this.snap)
+			}
+			if (this.vector) {
+				this.vector.getSource().clear()
+				this.map.removeLayer(this.vector)
+			}
+		},
+		// 编辑绘制
+		editDraw: function(){
+			// this.selectInteraction()
+		},
+		toList() {
+			let layerList = [];
+			console.log('tolist');
+			this.map.getLayers().forEach(layer => {
+				layerList.push({
+					name: layer.get("title"),
+					layer: layer,
+					visible: true,
+					editable: true
+				});
 			});
-		}
-		},
-		removeQueryProperties() {
-		console.info("Remove Query Properties")
-		this.isPropertiesPanelVisible = false;
-		},
-        // 开始绘制区域
-		drawPolygon: function() {
-            this.draw.changeMode('draw_polygon');
-        },
-        // 标记中心点
-        drawPoint: function(){
-            this.draw.changeMode('draw_point');
-        },
-        // 删除
-        delectDraw: function(){
-            this.draw.deleteAll()
-        },
-            updateArea (e) {
-      this.rawArea = null;
-      var featureNum = this.mapOptions.draw.getAll().features.length;
-      if (featureNum === 0) {
-        this.positions = [];
-      } else  {
-        if(this.mapOptions.draw.getAll().features.length) {
-            
-            for(var i=0;i<this.mapOptions.draw.getAll().features.length;i++){
-          let geometry = this.mapOptions.draw.getAll().features[i].geometry
-          switch(geometry.type) {
-            case 'Point':
-              this.markers.position = [{lng: geometry.coordinates[0], lat: geometry.coordinates[1]}];
-              break;
-            case 'LineString':
-              this.positions = geometry.coordinates.map(p => ({lng: p[0], lat: p[1]}));
-              break;
-            case 'Polygon':
-              if(geometry.coordinates.length) {
-                let temp = geometry.coordinates[0];
-                this.polygons = temp.map(p => ({lng: p[0], lat: p[1]})).filter((_, i) => temp.length - 1 != i);
-              } else {
-                 this.polygons  = [];
-              }
-              break;
-            default:
-              break;
-          }}
-        } else {
-          this.positions = [];
-        }
-      } 
-    },
+			layerList.reverse();
+			console.log(layerList);
+			return layerList;
+			}
 	},
-  watch:{
-      positions: function () {
-      this.mapOptions.draw.deleteAll();
-      const drawId = 'calculate-polygon';
-      if (this.positions.length === 0) {
-        return;
-      } else if (this.positions.length === 1) {
-        this.mapOptions.draw.add({ 
-          id: drawId,
-          type: 'Feature',
-          properties: {},
-          geometry: { type: 'Point', coordinates: [this.positions[0].lng, this.positions[0].lat] }
-        })
-      } else if (this.positions.length === 2) {
-        this.mapOptions.draw.add({ 
-          id: drawId,
-          type: 'Feature',
-          properties: {},
-          geometry: { type: 'LineString', coordinates: this.positions.map(p => [p.lng, p.lat]) }
-        }) 
-      } else {
-        this.mapOptions.draw.add({ 
-          id: drawId,
-          type: 'Feature',
-          properties: {},
-          geometry: { type: 'Polygon', coordinates: [
-            [...this.positions.map(p => [p.lng, p.lat]), [this.positions[0].lng, this.positions[0].lat]]
-          ] }
-        });
-        this.rawArea = Math.round(turf.area(this.mapOptions.draw.getAll()) * 100) / 100;
-      }
+	watch:{
+		selectedItem: {
+			handler(newValue) {
+				this.isVisible = !this.items[newValue].visible;
+			},
+			deep: true
     },
-    a:{
-    handler:function(val){
-      // console.log(val);
-    }
-  }
-  },
-  computed: {
- 
-}
+	selectedtype: function(newVal, oldVal) {
+			if(this.draw){
+            this.endDraw();
+			this.addInteractions(newVal);
+
+			}
+        }
+	}
 }
 </script>
 
 <style scoped>
-/* @import url('https://api.mapbox.com/mapbox-gl-js/v1.9.1/mapbox-gl.css'); */
-@import url('https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.0.9/mapbox-gl-draw.css');
-#map {
-	/* position: absolute; */
-	left: 0;
-	top: 0;
-	text-align: left;
-	width: 100%;
-	height: 100%;
-    cursor: ne-resize
+#olmap {
+	position: relative;
+	z-index: 1;
 }
-
+.mapselect {
+	position: absolute;
+	top: 3%;
+	right: 2%;
+	z-index: 2;
+}
+.geometryType {
+	position: absolute;
+	top: 3%;
+	left: 16%;
+	z-index: 2;
+}
 .opebutton {
 	position: absolute;
 	top: 3%;
 	right: 20%;
 	z-index: 2;
 }
-.quarkgis-layer-panel {
+.isedit {
+	position: absolute;
+	top: 4%;
+	right: 30%;
+	z-index: 2;
+}
+
+.layer-panel {
 	position: absolute;
 	top: 15%;
 	left: 10%;
@@ -585,37 +861,37 @@ export default {
 	overflow: auto;
 }
 
-.quarkgis-layer-panel-title {
+.layer-panel-title {
   height: 40px;
   width: 100%;
   line-height: 40px;
   font-weight: bold;
 }
 
-.quarkgis-layer-panel-title > span {
+.layer-panel-title > span {
   margin-left: 15px;
   color: #fff;
 }
 
-.quarkgis-layer-panel-toolbar {
+.layer-panel-toolbar {
   width: 100%;
 }
 
-.quarkgis-layer-panel-toolbar-btns {
+.layer-panel-toolbar-btns {
   float: left;
   width: 190px;
   display: flex;
   justify-content: space-around;
 }
 
-.quarkgis-layer-panel-toolbar-layer-info {
+.layer-panel-toolbar-layer-info {
   width: 66px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.quarkgis-layer-panel-layers {
+.layer-panel-layers {
   overflow: auto;
   width: 100%;
   height: calc(100% - 82px);
