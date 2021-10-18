@@ -34,9 +34,7 @@ import Bus from '../assets/bus'
         methods:{
             config() {
                 const name=this.file.name
-                console.log(this.filePath);
                 const extension=name.split('.')[1]
-                //console.log(extension)
                 if('shp'!==extension){
                     this.$alert('文件不是shp文件！请重新选择文件', {
                         confirmButtonText: '确定'
@@ -65,7 +63,6 @@ import Bus from '../assets/bus'
 
             },
             handleRemove(file, fileList) {
-                //console.log(file, fileList);
             },
             handlePreview(file) {
                 console.log(file);

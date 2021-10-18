@@ -24,7 +24,7 @@ import mapboxGL_DrawMap from './views/MapBox/mapboxGL_DrawMap'
 import mapboxGL_GridLayerSence from './views/MapBox/mapboxGL_GridLayerSence'
 import mapboxGL_HexagonLayer from './views/MapBox/mapboxGL_HexagonLayer'
 import mapboxGL_CGCS2000 from './views/MapBox/mapboxGL_CGCS2000'
-
+// import panel from './views/panel.vue'
 Vue.use(Router)
 
 const router = new Router({
@@ -57,7 +57,7 @@ const router = new Router({
         {path: '/mapboxgl_gridmap', name: 'mapboxgl_gridmap', component: mapboxGL_GridLayerSence},
         {path: '/mapboxgl_hexagonmap', name: 'mapboxgl_hexagonmap', component: mapboxGL_HexagonLayer},
         {path: '/mapboxgl_cgcs2000', name: 'mapboxgl_cgcs2000', component: mapboxGL_CGCS2000},
-        // {path: '/upload', name: 'upload', component: uploadshp},
+        // {path: '/panel', name: 'panel', component: panel},
       ]
     },
     {

@@ -18,15 +18,21 @@
     "esri-loader": "^2.9.2",
     "jwt-decode": "^2.2.0",
     "mapbox-gl": "^1.6.1",
+    "node-sass": "^6.0.1",
     "ol": "^5.3.3",
     "vue": "^2.6.10",
     "vue-router": "^3.0.3",
+    "vuetify": "^2.4.0",
     "vuex": "^3.0.1"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^3.8.0",
     "@vue/cli-service": "^3.8.0",
-    "vue-template-compiler": "^2.6.10"
+    "sass": "~1.32.0",
+    "sass-loader": "^7.1.0",
+    "vue-cli-plugin-vuetify": "~2.4.3",
+    "vue-template-compiler": "^2.6.10",
+    "vuetify-loader": "^1.7.0"
   },
   "postcss": {
     "plugins": {
