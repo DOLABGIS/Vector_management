@@ -51,7 +51,7 @@ export default {
 
 <style scoped>
 #properties-panel {
-  width: 300px;
+  width: 350px;
   max-width: 350px;
   height: 500px;
   right: 20px;

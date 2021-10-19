@@ -13,18 +13,26 @@
 			<div class="layer-panel-toolbar">
 			<v-toolbar flat color="#4a5064" dense height="40">
 				<div class="layer-panel-toolbar-btns">
-				<v-btn x-small icon :disabled="enableVisible" @click="setVisibility">
-					<v-icon>{{ isVisible ? "mdi-eye-off" : "mdi-eye"}}</v-icon>
-				</v-btn>
-				<v-btn x-small icon :disabled="enableDelete" @click="deleteLayer">
-					<v-icon>mdi-delete-outline</v-icon>
-				</v-btn>
-				<v-btn x-small icon @click="switchSelectionMode">
-					<v-icon>{{ enableSelect ? "mdi-cursor-default-outline" : "mdi-cursor-default" }}</v-icon>
-				</v-btn>
-				<v-btn x-small icon @click="switchQueryMode">
-					<v-icon>{{ enableQuery ? "mdi-database-search-outline" : "mdi-database-search" }}</v-icon>
-				</v-btn>
+					<el-tooltip class="item" effect="dark" content="显示" placement="bottom-start">
+						<v-btn x-small icon :disabled="enableVisible" @click="setVisibility" >
+							<v-icon>{{ isVisible ? "mdi-eye-off" : "mdi-eye"}}</v-icon>
+						</v-btn>
+					</el-tooltip>
+					<el-tooltip class="item" effect="dark" content="删除" placement="bottom-start">
+						<v-btn x-small icon :disabled="enableDelete" @click="deleteLayer">
+							<v-icon>mdi-delete-outline</v-icon>
+						</v-btn>
+					</el-tooltip>
+					<el-tooltip class="item" effect="dark" content="选择" placement="bottom-start">
+						<v-btn x-small icon @click="switchSelectionMode">
+							<v-icon>{{ enableSelect ? "mdi-cursor-default-outline" : "mdi-cursor-default" }}</v-icon>
+						</v-btn>
+					</el-tooltip>
+					<el-tooltip class="item" effect="dark" content="属性" placement="bottom-start">
+						<v-btn x-small icon @click="switchQueryMode">
+							<v-icon>{{ enableQuery ? "mdi-database-search-outline" : "mdi-database-search" }}</v-icon>
+						</v-btn>
+					</el-tooltip>
 				<v-btn x-small icon>
 					<v-icon>mdi-filter</v-icon>
 				</v-btn>
@@ -94,7 +102,7 @@
 			<el-button type="delectDraw" @click="delectDraw()">删除绘制</el-button>
 			<el-button type="danger" @click="editDraw()">编辑绘制</el-button>
 		</el-row>
-		
+		<testpanel :visible="isPropertiesPanelVisible"></testpanel>
 		<propertiPanel  color="#4a5064" :visible="isPropertiesPanelVisible"
                                   :properties="selectedFeatureProperties"
 								  :titles="title"></propertiPanel>
@@ -115,13 +123,14 @@ import XYZ from 'ol/source/XYZ'
 import { transform } from 'ol/proj'
 import mapSources from './OpenLayers/modules/maplist'
 import propertiPanel from './OpenLayers/PropertiesPanel.vue'
+import testpanel from './testpanel.vue'
 import Bus from '../assets/bus'
 import GeoJSON from "ol/format/GeoJSON"
 import jsondata from '../../src/assets/data/wuhan.json'
 import axios from 'axios'
 // import panel from '../panel.vue'
 export default {
-	components: {propertiPanel},
+	components: {propertiPanel,testpanel},
 	data() {
 		return {
 			checked: false,
@@ -648,15 +657,17 @@ export default {
 			},
 			enableQueryProperties() {
 			console.info("Enable Query");
-			console.log(this.items[this.selectedItem].name);
-			this.selectedFeatureProperties = [[11,22],[33,44]]
-			this.isPropertiesPanelVisible = true;
-			this.title=['nae','dw']
-			// axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
-			// 	this.isPropertiesPanelVisible = true;
-			// 	this.properties = response.data['content']
-			// 	this.titles=response.data['title']
-			// });
+			// console.log(this.items[this.selectedItem].name);
+			// this.selectedFeatureProperties = [[11,22],[33,44]]
+			// this.isPropertiesPanelVisible = true;
+			// this.title=['nae','dw']
+			axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
+				this.isPropertiesPanelVisible = true;
+				this.selectedFeatureProperties = response.data['content']
+				this.title=response.data['title']
+				console.log(this.properties)
+				console.log(this.titles)
+			});
 
 			if (this.singleClickSelect) {
 				this.singleClickSelect.on('select', (e) => {
