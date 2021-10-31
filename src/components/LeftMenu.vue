@@ -112,7 +112,7 @@ export default {
   }
 };
 </script>
-<style lang="less" scoped>
+<style  scoped>
 .el-aside {
   position: fixed;
   top: 70px;
@@ -120,9 +120,6 @@ export default {
   min-height: 100%;
   background-color: #324057;
   z-index: 99;
-    .el-menu {
-        border-right: none;
-    }
 }
 
 .el-main {

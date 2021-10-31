@@ -13,7 +13,7 @@
 			<div class="layer-panel-toolbar">
 			<v-toolbar flat color="#4a5064" dense height="40">
 				<div class="layer-panel-toolbar-btns">
-					<el-tooltip class="item" effect="dark" content="显示" placement="bottom-start">
+					<el-tooltip class="item" effect="light" content="显示" placement="bottom-start">
 						<v-btn x-small icon :disabled="enableVisible" @click="setVisibility" >
 							<v-icon>{{ isVisible ? "mdi-eye-off" : "mdi-eye"}}</v-icon>
 						</v-btn>
@@ -102,10 +102,10 @@
 			<el-button type="delectDraw" @click="delectDraw()">删除绘制</el-button>
 			<el-button type="danger" @click="editDraw()">编辑绘制</el-button>
 		</el-row>
-		<testpanel :visible="isPropertiesPanelVisible"></testpanel>
+		
 		<propertiPanel  color="#4a5064" :visible="isPropertiesPanelVisible"
-                                  :properties="selectedFeatureProperties"
-								  :titles="title"></propertiPanel>
+                                  :items="selectedFeatureProperties"
+								  :headers="headers"></propertiPanel>
 		<!-- <el-checkbox class="isedit" v-model="checked">启用WFS编辑</el-checkbox> -->
 
 	</div>
@@ -123,14 +123,13 @@ import XYZ from 'ol/source/XYZ'
 import { transform } from 'ol/proj'
 import mapSources from './OpenLayers/modules/maplist'
 import propertiPanel from './OpenLayers/PropertiesPanel.vue'
-import testpanel from './testpanel.vue'
 import Bus from '../assets/bus'
 import GeoJSON from "ol/format/GeoJSON"
 import jsondata from '../../src/assets/data/wuhan.json'
 import axios from 'axios'
 // import panel from '../panel.vue'
 export default {
-	components: {propertiPanel,testpanel},
+	components: {propertiPanel},
 	data() {
 		return {
 			checked: false,
@@ -138,6 +137,9 @@ export default {
 			layerName: "",
 			selectedItem: 0,
       		items: [],
+			jsonFeature: [],
+			jsonProperties:[],
+			attribute:[],
 			geometryType: [
 				{
 					value: 'Point',
@@ -208,8 +210,19 @@ export default {
 			enableQuery: false,
 			openDataSourceDialog: false,
 			saveEditingDialog: false,
-			properties:null,
-			title:null,
+			properties: [],
+			headers:null,
+			dialog: false,
+            dialogDelete: false,
+            editedIndex: -1,
+            editedItem: { 
+				nae: '',
+			    dw: 0,
+				},
+            defaultItem: {
+                nae: '',
+                dw: 0,
+                },
 		}
 	},
 	created() {
@@ -217,14 +230,21 @@ export default {
 				this.isShow = val
 
 			})
-		Bus.$on('geojson',(val)=>{
-				
+		Bus.$on('geojson',(val)=>{	
 			}) 
-		//this.createMap()
+			
 	},
-	mounted() {
+	mounted() {	
 		this.initMap();
-		
+		Bus.$on('editedIndex',(val2)=>{
+		this.editedIndex = val2;
+        console.log('this.editedIndex2',this.editedIndex);
+		jsondata.features.splice(this.editedIndex,1);
+		this.vectorla.getSource().clear();
+		var features = (new GeoJSON()).readFeatures(jsondata, {featureProjection:"EPSG:3857"});
+		this.vectorla.getSource().addFeatures(features);
+		console.log('jsondata.features.length',jsondata.features.length);
+			})
 	},
 	methods: {
 		initMap: function() {
@@ -255,7 +275,9 @@ export default {
 				source: this.tdtlabeldz,
 				projection: this.proj_m
 			})
-			console.log(jsondata);
+			
+			console.log('jsondata',jsondata);
+
 			this.vectorla  = new VectorLayer({
 				title:"wuhan",
 				source:new VectorSource({
@@ -279,6 +301,31 @@ export default {
                 color: '#0d0887',
               }),
 			})})
+
+			
+			for (var i = 0; i < jsondata.features.length; i++) {
+                var jsonFeature = jsondata.features[i];
+				this.jsonProperties.push({name:""});
+				this.jsonProperties.push({colories:""});
+				this.jsonProperties.push({fat:""});
+				this.jsonProperties.push({carbs:""});
+				this.jsonProperties.push({protein:""});
+                this.jsonProperties[i].name = jsonFeature.properties.name;
+				this.jsonProperties[i].calories = jsonFeature.properties.adcode;
+				this.jsonProperties[i].fat = jsonFeature.properties.centroid;
+				this.jsonProperties[i].carbs = jsonFeature.properties.center;
+				this.jsonProperties[i].protein = jsonFeature.properties.subFeatureIndex;
+                console.log(this.jsonProperties[i].name,this.jsonProperties[i].calories,
+				this.jsonProperties[i].fat,this.jsonProperties[i].carbs,this.jsonProperties[i].protein);
+            }
+			for (var i = 0; i < this.jsonProperties.length; i++){
+				if(i >= jsondata.features.length)
+				this.jsonProperties.splice(i,this.jsonProperties.length-jsondata.features.length)
+			}
+			console.log(this.jsonProperties);
+
+			
+
 			//将图层加载到地图对象
 			this.map.addLayer(this.mapLayer)
 			this.map.addLayer(this.mapLayerlabel)
@@ -301,6 +348,8 @@ export default {
 			this.layerNumber = this.items.length;
     		this.visibleLayerNumber = this.items.length;
 		},
+
+
 		/******************地图切换方法***************/
 		changeBaseMap: function(value) {
 			this.map.removeLayer(this.mapLayer)
@@ -657,17 +706,96 @@ export default {
 			},
 			enableQueryProperties() {
 			console.info("Enable Query");
-			// console.log(this.items[this.selectedItem].name);
-			// this.selectedFeatureProperties = [[11,22],[33,44]]
-			// this.isPropertiesPanelVisible = true;
-			// this.title=['nae','dw']
-			axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
-				this.isPropertiesPanelVisible = true;
-				this.selectedFeatureProperties = response.data['content']
-				this.title=response.data['title']
-				console.log(this.properties)
-				console.log(this.titles)
-			});
+			console.log(this.items[this.selectedItem].name);
+			 this.properties = this.jsonProperties;
+			 /* [{
+            name: 'Frozen Yogurt',
+            calories: 159,
+            fat: 6.0,
+            carbs: 24,
+            protein: 4.0,
+          },
+          {
+            name: 'Ice cream sandwich',
+            calories: 237,
+            fat: 9.0,
+            carbs: 37,
+            protein: 4.3,
+          },
+          {
+            name: 'Eclair',
+            calories: 262,
+            fat: 16.0,
+            carbs: 23,
+            protein: 6.0,
+          },
+          {
+            name: 'Cupcake',
+            calories: 305,
+            fat: 3.7,
+            carbs: 67,
+            protein: 4.3,
+          },
+          {
+            name: 'Gingerbread',
+            calories: 356,
+            fat: 16.0,
+            carbs: 49,
+            protein: 3.9,
+          },
+          {
+            name: 'Jelly bean',
+            calories: 375,
+            fat: 0.0,
+            carbs: 94,
+            protein: 0.0,
+          },
+          {
+            name: 'Lollipop',
+            calories: 392,
+            fat: 0.2,
+            carbs: 98,
+            protein: 0,
+          },
+          {
+            name: 'Honeycomb',
+            calories: 408,
+            fat: 3.2,
+            carbs: 87,
+            protein: 6.5,
+          },
+          {
+            name: 'Donut',
+            calories: 452,
+            fat: 25.0,
+            carbs: 51,
+            protein: 4.9,
+          },
+          {
+            name: 'KitKat',
+            calories: 518,
+            fat: 26.0,
+            carbs: 65,
+            protein: 7,
+          },
+        ], */
+
+			Bus.$emit('item', this.properties);
+			this.isPropertiesPanelVisible = true;
+			this.headers=[
+          {text: 'Name',value: 'name',},
+        { text: 'Adcode', value: 'calories' },
+        { text: 'Center', value: 'fat' },
+        { text: 'Centroid', value: 'carbs' },
+        { text: 'Index', value: 'protein' },
+        { text: 'Actions', value: 'actions'},
+      ]
+	  Bus.$emit('header', this.headers);
+			// axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
+			// 	this.isPropertiesPanelVisible = true;
+			// 	this.properties = response.data['content']
+			// 	this.titles=response.data['title']
+			// });
 
 			if (this.singleClickSelect) {
 				this.singleClickSelect.on('select', (e) => {
