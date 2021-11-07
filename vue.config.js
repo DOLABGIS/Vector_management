@@ -32,12 +32,18 @@ module.exports = {
         //     }
         // })
     },
-    chainWebpack: config => { // webpack链接API，用于生成和修改webapck配置，https://github.com/vuejs/vue-cli/blob/dev/docs/webpack.md
-        if (debug) {
-            // 本地开发配置
-        } else {
-            // 生产开发配置
-        }
+    chainWebpack: config => {
+        config.module
+        .rule('less')
+        .use('less-loader')
+        .loader('less-loader')
+        .options({
+           lessOptions: {
+           /**less-loader 配置 */
+             strictMath: true,
+             noIeCompat: true
+           }
+        })
     },
     parallel: require('os').cpus().length > 1, // 构建时开启多进程处理babel编译
     pluginOptions: { // 第三方插件配置
