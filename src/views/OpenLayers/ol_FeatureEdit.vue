@@ -661,7 +661,6 @@ export default {
 				}
 				const feature = e.selected[0];
 				if (feature) {
-					console.info("Got Selected Features! ", feature)
 					this.isPropertiesPanelVisible = true;
 					Object.getOwnPropertyNames(feature.getProperties()).forEach(key => {
 					key = key.toString();
@@ -672,6 +671,7 @@ export default {
 						name: key,
 						value: value
 						});
+						console.log('feaure',this.selectedFeatureProperties);
 					}
 					});
 				} else {

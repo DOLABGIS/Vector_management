@@ -95,6 +95,14 @@
                 :value="item.value"
             ></el-option>
 		</el-select>
+		<el-select class="algorithmType" v-model="value2" placeholder="多边形算法" @change="selectalgrithm(value2)">
+            <el-option
+                v-for="item in algorithmType"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+            ></el-option>
+		</el-select>
 		<el-row class="opebutton">
 			<el-button type="primary" @click="startDraw()">开始绘制</el-button>
 			<el-button type="endDraw" @click="endDraw()">结束绘制</el-button>
@@ -102,10 +110,10 @@
 			<el-button type="delectDraw" @click="delectDraw()">删除绘制</el-button>
 			<el-button type="danger" @click="editDraw()">编辑绘制</el-button>
 		</el-row>
-		<testpanel :visible="isPropertiesPanelVisible"></testpanel>
-		<propertiPanel  color="#4a5064" :visible="isPropertiesPanelVisible"
+		<!-- <testpanel :visible="isPropertiesPanelVisible" :properties="selectedFeatureProperties" :titles="title"></testpanel> -->
+		<!-- <propertiPanel  color="#4a5064" :visible="isPropertiesPanelVisible"
                                   :properties="selectedFeatureProperties"
-								  :titles="title"></propertiPanel>
+								  :titles="title"></propertiPanel> -->
 		<!-- <el-checkbox class="isedit" v-model="checked">启用WFS编辑</el-checkbox> -->
 
 	</div>
@@ -126,8 +134,10 @@ import propertiPanel from './OpenLayers/PropertiesPanel.vue'
 import testpanel from './testpanel.vue'
 import Bus from '../assets/bus'
 import GeoJSON from "ol/format/GeoJSON"
+import shortid from 'shortid'
 import jsondata from '../../src/assets/data/wuhan.json'
 import axios from 'axios'
+import {getArea, getLength} from 'ol/sphere';
 // import panel from '../panel.vue'
 export default {
 	components: {propertiPanel,testpanel},
@@ -156,9 +166,28 @@ export default {
 					label: 'Circle'
 				}
 			],
+			algorithmType:[
+				{
+					value:'Convexity',
+					label:'多边形凹凸性'
+				},
+				{
+					value:'getposition',
+					label:'点与多边形关系'
+				},
+				{
+					value:'isvalid',
+					label:'多边形是否自相交'
+				},
+				{
+					value:'Area',
+					label:'多边形面积'
+				}
+			],
 			options: mapSources.basemapLabel,
 			value: '',
 			value1: '',
+			value2:'',
 			googledz: mapSources.googledz,
 			googledx: mapSources.googledx,
 			googlewx: mapSources.googlewx,
@@ -198,6 +227,7 @@ export default {
 			addedFeatures: [],
       		modifiedFeatures: {},
 			selectedtype:'Polygon',
+			selectedalgorithm:'',
 			enableAddData: false,
 			enableEdit: false,
 			enableVisible: false,
@@ -229,6 +259,7 @@ export default {
 	methods: {
 		initMap: function() {
 			//初始化map对象
+
 			this.map = new Map({
 				target: 'olmap',
 				projection: this.proj,
@@ -255,7 +286,6 @@ export default {
 				source: this.tdtlabeldz,
 				projection: this.proj_m
 			})
-			console.log(jsondata);
 			this.vectorla  = new VectorLayer({
 				title:"wuhan",
 				source:new VectorSource({
@@ -295,9 +325,7 @@ export default {
 			});
 			console.log('tolist');
 			layerList.reverse();
-			console.log(layerList);
 			this.items = layerList;
-			console.log(this.items);
 			this.layerNumber = this.items.length;
     		this.visibleLayerNumber = this.items.length;
 		},
@@ -468,6 +496,23 @@ export default {
 			}
 			console.log(this.draw);
 		},
+		selectalgrithm: function(value) {
+			switch (value) {
+				case 'Convexity':
+					this.selectedalgorithm ='Convexity';
+					break
+				case 'getposition':
+					this.selectedalgorithm ='getposition';
+					break
+				case 'isvalid':
+					this.selectedalgorithm ='isvalid';
+					break	
+				case 'Area':
+					this.selectedalgorithm ='Area';
+					break
+			}
+			console.log(this.draw);
+		},
 		// modifyInteraction
 		wfsEdit: function() {
 			let modify = new Modify({
@@ -488,6 +533,7 @@ export default {
 				}),
 				type: value
 			})
+			console.log(this.draw);
 			this.map.addInteraction(this.draw)
 			this.snap = new Snap({
 				source: this.source
@@ -547,6 +593,35 @@ export default {
 			this.singleClickSelect = new Select();
 			this.map.addInteraction(this.singleClickSelect);
 			console.log("Enable Selection");
+			if (this.singleClickSelect) {
+				console.log(this.singleClickSelect);
+				this.singleClickSelect.on('select', (e) => {
+				if (this.selectedFeatureProperties) {
+					this.selectedFeatureProperties = [];
+				}
+				console.log(e.selected);
+				const feature = e.selected[0];
+				if (feature) {
+					console.info("Got Selected Features! ", feature)
+					this.isPropertiesPanelVisible = true;
+					Object.getOwnPropertyNames(feature.getProperties()).forEach(key => {
+					key = key.toString();
+					console.log(key);
+					if (key !== "geometry" && key !== "childrenNum"&& key!== "parent") {
+						const value = feature.getProperties()[key] || "null";
+						this.selectedFeatureProperties.push({
+						id: shortid(),
+						name: key,
+						value: value
+						});
+					}
+					});
+				} else {
+					console.warn("Nothing Selected!");
+					this.isPropertiesPanelVisible = false;
+				}
+				});
+			}
 		},
 		removeSelection() {
 			if (this.singleClickSelect) {
@@ -658,22 +733,23 @@ export default {
 			enableQueryProperties() {
 			console.info("Enable Query");
 			// console.log(this.items[this.selectedItem].name);
-			// this.selectedFeatureProperties = [[11,22],[33,44]]
-			// this.isPropertiesPanelVisible = true;
-			// this.title=['nae','dw']
+			this.selectedFeatureProperties = [[11,22],[33,44]]
+			this.isPropertiesPanelVisible = true;
 			axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
 				this.isPropertiesPanelVisible = true;
 				this.selectedFeatureProperties = response.data['content']
 				this.title=response.data['title']
-				console.log(this.properties)
-				console.log(this.titles)
+				Bus.$emit('header', this.title);
+				Bus.$emit('item', this.selectedFeatureProperties);
 			});
-
 			if (this.singleClickSelect) {
+				console.log(this.singleClickSelect);
 				this.singleClickSelect.on('select', (e) => {
+				console.log('aa');
 				if (this.selectedFeatureProperties) {
 					this.selectedFeatureProperties = [];
 				}
+				console.log(e.selected);
 				const feature = e.selected[0];
 				if (feature) {
 					console.info("Got Selected Features! ", feature)
@@ -743,7 +819,67 @@ export default {
 			if (this.draw) {
 				this.map.removeInteraction(this.draw)
 				this.map.removeInteraction(this.snap)
-				console.log('shanchu')
+				this.draw = null
+				this.snap = null
+			}
+			if(this.selectedalgorithm !=''){
+				if(this.selectedalgorithm=='Convexity'){
+					var features = this.source.getFeatures();
+					var coord = features[0].getGeometry().getCoordinates();
+					console.log(coord[0]);
+					axios.post('api/Convexity',{'polygon':coord[0]}).then((response)=>{
+						console.log(response.data);
+						if (response.data =='True' ){
+							alert('凹多边形');
+						}
+						if (response.data =='False' ){
+							alert('凸多边形');
+						}
+					});
+				}
+				if(this.selectedalgorithm=='getposition'){
+					var features = this.source.getFeatures();
+					var coord = features[0].getGeometry().getCoordinates();
+					this.map.on('click',function(evt){
+						console.log(evt.coordinate);
+						axios.post('api/getposition',{'polygon':coord[0],'point':evt.coordinate}).then((response)=>{
+						console.log(response.data);
+						if (response.data ==-1 ){
+							alert('点在多边形上');
+						}
+						else if (response.data ==1 ){
+							alert('点在多边形外');
+						}
+						else if (response.data ==0 ){
+							alert('点在多边形内');
+						}
+					});
+					})
+					
+				}
+				if(this.selectedalgorithm=='isvalid'){
+					var features = this.source.getFeatures();
+					var coord = features[0].getGeometry().getCoordinates();
+						axios.post('api/isvalid',{'polygon':coord[0]}).then((response)=>{
+						console.log(response.data);
+						if (response.data =='-1' ){
+							alert('多边形自相交');
+						}
+						else if (response.data =='1' ){
+							alert('多边形有效');
+						}
+					})
+					
+				}
+				if(this.selectedalgorithm=='Area'){
+					var features = this.source.getFeatures();
+					var coord = features[0].getGeometry().getCoordinates();
+					console.log(getArea(features[0].getGeometry()));
+					axios.post('api/cal_polygonarea',{'polygon':coord[0]}).then((response)=>{
+						console.log(response.data['area']);
+						alert('多边形面积为：'+response.data['area']+'平方公里');
+					});
+				}
 			}
 		},
 		// 保存绘制
@@ -758,22 +894,22 @@ export default {
 					this.vector.values_.title =value;
 					console.log(this.vector);
 					this.map.addLayer(this.vector);
-					console.log('aa',this.map.getLayers());
 					this.items = this.toList();
 					this.endDraw();
-					// let features = this.source.getFeatures()
-					// console.log(features);
-					// if (features.length > 0) {
-					// 	for (var j = 0; j < features.length; j++) {
-					// 		// 将3857坐标转换为4326坐标
-					// 		let geo = features[j].getGeometry().transform(this.proj_m, this.proj)
-					// 		// let geo = features[j].getGeometry()
-					// 			axios.post('api/uploadgeojson',geo).then((response)=>{
-					// 				alert("保存成功");
-					// 			});
-					// 		alert(geo)
-					// 	}
-					// }
+					var source = this.vector.getSource();
+					let features = this.source.getFeatures()
+					console.log(features);
+					if (features.length > 0) {
+						for (var j = 0; j < features.length; j++) {
+							// 将3857坐标转换为4326坐标
+							let geo = features[j].getGeometry().transform(this.proj_m, this.proj)
+							// let geo = features[j].getGeometry()
+								axios.post('api/uploadgeojson',{'data':geo,'name':this.layerName }).then((response)=>{
+									alert("保存成功");
+								});
+							alert(geo)
+						}
+					}
   	
         		}).catch(() => {
 					this.$message({
@@ -783,6 +919,8 @@ export default {
 				});
 
 			}
+			this.draw = null
+			this.snap = null
 		},
 		// 删除绘制
 		delectDraw: function() {
@@ -794,10 +932,14 @@ export default {
 				this.vector.getSource().clear()
 				this.map.removeLayer(this.vector)
 			}
+			this.draw = null
+			this.snap = null	
 		},
 		// 编辑绘制
 		editDraw: function(){
-			// this.selectInteraction()
+			this.map.removeInteraction(this.draw)
+			this.draw = null
+			this.selectInteraction()
 		},
 		toList() {
 			let layerList = [];
@@ -847,8 +989,16 @@ export default {
 .geometryType {
 	position: absolute;
 	top: 3%;
-	left: 16%;
+	left: 10%;
 	z-index: 2;
+	width:150px;
+}
+.algorithmType {
+	position: absolute;
+	top: 3%;
+	left: 22%;
+	z-index: 2;
+	width:150px;
 }
 .opebutton {
 	position: absolute;

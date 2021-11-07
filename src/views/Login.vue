@@ -27,7 +27,7 @@
 
 <script>
 import jwt_decode from 'jwt-decode' //解析token的模块
-
+import axios from 'axios'
 export default {
   name: "login",
   data() {
@@ -56,24 +56,27 @@ export default {
      submitForm(formName) {
       this.$refs[formName].validate(valid => {
         if (valid) {
-          this.$router.push("/index")
-          // this.$axios
-          //   .post("/api/users/login", this.loginUser)
-          //   .then(res => {
-          //     // console.log(res)
-          //     //token处理
-          //     const { token } = res.data
-          //     //存储到localstorage里
-          //     localStorage.setItem("eletoken", token)
-          //     //解析token
-          //     const decode = jwt_decode(token)
-          //     console.log(decode)
-          //      // 存储数据到VUEX中 
-          //     this.$store.dispatch("setIsAutnenticated", !this.isEmpty(decode))
-          //     this.$store.dispatch("setUser", decode)
-
-          //     this.$router.push("/index")
-          //   })
+          // this.$router.push("/index")
+          axios
+            .post("/users/login", this.loginUser)
+            .then(res => {
+              if (res.data=='0')
+              {
+                
+              }
+              // // console.log(res)
+              // //token处理
+              // const { token } = res.data
+              // //存储到localstorage里
+              // localStorage.setItem("eletoken", token)
+              // //解析token
+              // const decode = jwt_decode(token)
+              // console.log(decode)
+              //  // 存储数据到VUEX中 
+              // this.$store.dispatch("setIsAutnenticated", !this.isEmpty(decode))
+              // this.$store.dispatch("setUser", decode)
+              this.$router.push("/index")
+            })
         } else {
           console.log("error submit!!")
           return false;

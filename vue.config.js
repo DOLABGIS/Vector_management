@@ -52,7 +52,7 @@ module.exports = {
         hotOnly: false,
         proxy: { // 配置跨域
             '/api': {
-                target: 'http://localhost:5000/dogis/api/v1.0',
+                target: 'http://49.232.75.144:9423/dogis/api/v1.0',
                 ws: true,
                 changOrigin: true,
                 pathRewrite: {

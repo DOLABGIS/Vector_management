@@ -5,6 +5,7 @@ import Register from './views/Register.vue'
 import Notfound from './views/404.vue'
 import Login from './views/Login.vue'
 import Home from './views/Home.vue'
+import olfeature from './views/OpenLayers/ol_FeatureEdit'
 // import panel from './views/panel.vue'
 Vue.use(Router)
 
@@ -14,7 +15,7 @@ const router = new Router({
   routes: [
     {
       path: '/',
-      redirect: '/home'
+      redirect: '/login'
     },
     {
       path: '/index',
@@ -23,7 +24,7 @@ const router = new Router({
       children: [
         {path: '', component: Home},
         {path: '/home', name:'home', component: Home},
-        // {path: '/panel', name: 'panel', component: panel},
+        // {path: '/olfeature', name: 'olfeature', component: olfeature},
       ]
     },
     {
