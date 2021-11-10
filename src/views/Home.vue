@@ -1,10 +1,12 @@
 <template>
-<v-app  style="width: 100%; height: 100%;position:relative;">
+<v-app  >
 	<div id="olmap" ref="olmap" style="width: 100%; height: 100%;">
 		<!-- <panel>
 		</panel> -->
 		<div  id="info-box" >
-		
+			
+		<!-- <download  v-if="true" id='downfile'>> </download> -->
+		<openfile v-if="isShow" id='openfile'></openfile>
 		<v-card tile class="layer-panel" color="#4a5064" draggable="true">
 			<div class="layer-panel-title">
 			<span>图层</span>
@@ -31,6 +33,16 @@
 					<el-tooltip class="item" effect="dark" content="属性" placement="bottom-start">
 						<v-btn x-small icon @click="switchQueryMode">
 							<v-icon>{{ enableQuery ? "mdi-database-search-outline" : "mdi-database-search" }}</v-icon>
+						</v-btn>
+					</el-tooltip>
+					<el-tooltip class="item" effect="dark" content="查询" placement="bottom-start">
+						<v-btn x-small icon @click="querysql">
+							<v-icon>{{"mdi-magnify"}}</v-icon>
+						</v-btn>
+					</el-tooltip>
+					<el-tooltip class="item" effect="dark" content="下载" placement="bottom-start">
+						<v-btn x-small icon @click="downloadshp">
+							<v-icon>{{ "mdi-download"  }}</v-icon>
 						</v-btn>
 					</el-tooltip>
 				<v-btn x-small icon>
@@ -111,9 +123,9 @@
 			<el-button type="danger" @click="editDraw()">编辑绘制</el-button>
 		</el-row>
 		<!-- <testpanel :visible="isPropertiesPanelVisible" :properties="selectedFeatureProperties" :titles="title"></testpanel> -->
-		<!-- <propertiPanel  color="#4a5064" :visible="isPropertiesPanelVisible"
+		<propertiPanel   :visible="isPropertiesPanelVisible"
                                   :properties="selectedFeatureProperties"
-								  :titles="title"></propertiPanel> -->
+								  :titles="title"></propertiPanel>
 		<!-- <el-checkbox class="isedit" v-model="checked">启用WFS编辑</el-checkbox> -->
 
 	</div>
@@ -131,20 +143,23 @@ import XYZ from 'ol/source/XYZ'
 import { transform } from 'ol/proj'
 import mapSources from './OpenLayers/modules/maplist'
 import propertiPanel from './OpenLayers/PropertiesPanel.vue'
-import testpanel from './testpanel.vue'
+import testpanel from './OpenLayers/testpanel.vue'
 import Bus from '../assets/bus'
 import GeoJSON from "ol/format/GeoJSON"
 import shortid from 'shortid'
 import jsondata from '../../src/assets/data/wuhan.json'
 import axios from 'axios'
+import Openfile from './upload.vue'
+import download from './download.vue'
 import {getArea, getLength} from 'ol/sphere';
 // import panel from '../panel.vue'
 export default {
-	components: {propertiPanel,testpanel},
+	components: {propertiPanel,testpanel,Openfile,download},
 	data() {
 		return {
 			checked: false,
 			openDataSourceDialog:true,
+			isShow:false,
 			layerName: "",
 			selectedItem: 0,
       		items: [],
@@ -234,12 +249,13 @@ export default {
 			isVisible: false,
 			isEditable: false,
 			enableDelete: false,
-			enableSelect: true,
+			enableSelect: false,
 			enableQuery: false,
 			openDataSourceDialog: false,
 			saveEditingDialog: false,
 			properties:null,
 			title:null,
+			vectorla:null,
 		}
 	},
 	created() {
@@ -247,16 +263,77 @@ export default {
 				this.isShow = val
 
 			})
+		Bus.$on('download',(val)=>{
+			// $refs.file.click();
+			})	
 		Bus.$on('geojson',(val)=>{
-				
+			var vectorlayer  = new VectorLayer({
+				title:val.layername,
+				source:new VectorSource({
+					features: new GeoJSON().readFeatures(val.data,{
+    					featureProjection:"EPSG:3857"
+					})
+				}),
+				projection: this.proj_m,
+				zIndex:10,
+				style:  new Style({
+              stroke: new Stroke({
+                  color: 'rgba(121,121,125,1.0)',
+                  lineDash: null,
+                  lineCap: 'butt',
+                  lineJoin: 'miter',
+                  width: 0,
+              }),
+              fill: new Fill({
+                color: '#0d0887',
+              }),
+			})})
+			this.map.addLayer(vectorlayer);
+			this.items = this.toList();
 			}) 
 		//this.createMap()
 	},
 	mounted() {
 		this.initMap();
-		
+		Bus.$on('delete_item',(val)=>{
+			this.map.getLayers().forEach(function (layer) {
+			if (layer.get('name') != undefined && layer.get('title') === val.layername) {
+				// layersToRemove.push(layer);
+				layer.getSource().clear();
+				var features = (new GeoJSON()).readFeatures(val.data, {featureProjection:"EPSG:3857"});
+				layer.getSource().addFeatures(features);
+			}
+		});
+		// this.map..getSource().clear();
+		// var features = (new GeoJSON()).readFeatures(val, {featureProjection:"EPSG:3857"});
+		// this.vectorla.getSource().addFeatures(features);
+			})
 	},
 	methods: {
+		querysql(){
+				this.$prompt('请输入sql语句', '提示', {
+          		confirmButtonText: '确定',
+          		cancelButtonText: '取消',
+        		}).then(({ value }) => {
+
+				axios.post('api/query',{'sql':value }).then((response)=>{
+				// 返回符合查询条件的table，格式和查询图层的属性表一样（attr_table)
+				});
+        		});
+		},
+		downloadshp(){
+                var element = document.createElement('a');
+				var name =this.items[this.selectedItem].name +'.json'
+				let features = this.vectorla.getSource().getFeatures()
+				var newForm = new GeoJSON();
+				var featColl = newForm.writeFeaturesObject(features);
+				console.log(featColl);
+				element.setAttribute('href', 'data:text/plain;charset=utf-8,'+encodeURIComponent(JSON.stringify(featColl)));
+                element.setAttribute('download', name);
+                document.body.appendChild(element);
+                element.click();
+				document.body.removeChild(element); //下载完成移除元素
+		},
 		initMap: function() {
 			//初始化map对象
 
@@ -286,33 +363,64 @@ export default {
 				source: this.tdtlabeldz,
 				projection: this.proj_m
 			})
-			this.vectorla  = new VectorLayer({
-				title:"wuhan",
-				source:new VectorSource({
-					// url:jsondata,
-					// format: new GeoJSON()
-					features: new GeoJSON().readFeatures(jsondata,{
+			// this.vectorla  = new VectorLayer({
+			// 	title:"wuhanaaa",
+			// 	source:new VectorSource({
+			// 		// url:jsondata,
+			// 		// format: new GeoJSON()
+			// 		features: new GeoJSON().readFeatures(jsondata,{
+    		// 			featureProjection:"EPSG:3857"
+			// 		})
+			// 	}),
+			// 	projection: this.proj_m,
+			// 	zIndex:10,
+			// 	style:  new Style({
+            //   stroke: new Stroke({
+            //       color: 'rgba(121,121,125,1.0)',
+            //       lineDash: null,
+            //       lineCap: 'butt',
+            //       lineJoin: 'miter',
+            //       width: 0,
+            //   }),
+            //   fill: new Fill({
+            //     color: '#0d0887',
+            //   }),
+			// })})
+			axios.get('api/initial').then(response=>{
+				var layers = response.data;
+				this.map.addLayer(this.mapLayer)
+				this.map.addLayer(this.mapLayerlabel)
+				for (var item in layers)
+				{ 
+					console.log(item);
+					console.log(layers[item][0]);
+					// console.log(Object.keys(item));
+					var vector_layer  = new VectorLayer({
+					title:item,
+					source:new VectorSource({
+					features: new GeoJSON().readFeatures(layers[item][0],{
     					featureProjection:"EPSG:3857"
 					})
-				}),
-				projection: this.proj_m,
-				zIndex:10,
-				style:  new Style({
-              stroke: new Stroke({
-                  color: 'rgba(121,121,125,1.0)',
-                  lineDash: null,
-                  lineCap: 'butt',
-                  lineJoin: 'miter',
-                  width: 0,
-              }),
-              fill: new Fill({
-                color: '#0d0887',
-              }),
-			})})
-			//将图层加载到地图对象
-			this.map.addLayer(this.mapLayer)
-			this.map.addLayer(this.mapLayerlabel)
-			this.map.addLayer(this.vectorla)
+					}),
+					projection: this.proj_m,
+					zIndex:10,
+					style:  new Style({
+              		stroke: new Stroke({
+                  	color: 'rgba(121,121,125,1.0)',
+                  	lineDash: null,
+                  	lineCap: 'butt',
+                  	lineJoin: 'miter',
+                  	width: 0,
+              		}),
+              		fill: new Fill({
+                		color: '#0d0887',
+              			}),
+					})})
+				this.map.addLayer(vector_layer)
+				}
+//将图层加载到地图对象
+
+			// this.map.addLayer(this.vectorla)
 
 			let layerList = [];
 			this.map.getLayers().forEach(layer => {
@@ -323,11 +431,14 @@ export default {
 					editable: true
 				});
 			});
-			console.log('tolist');
+			console.log(layerList);
 			layerList.reverse();
 			this.items = layerList;
 			this.layerNumber = this.items.length;
     		this.visibleLayerNumber = this.items.length;
+
+			});
+			
 		},
 		/******************地图切换方法***************/
 		changeBaseMap: function(value) {
@@ -497,6 +608,7 @@ export default {
 			console.log(this.draw);
 		},
 		selectalgrithm: function(value) {
+			this.map.removeEventListener('singleclick');
 			switch (value) {
 				case 'Convexity':
 					this.selectedalgorithm ='Convexity';
@@ -578,16 +690,16 @@ export default {
 		},
 		//切换查询模式
 		switchQueryMode() {
-			if (this.enableSelect) {
+			// if (this.enableSelect) {
 				this.enableQuery = !this.enableQuery;
 				if (this.enableQuery) {
 				this.enableQueryProperties();
 				} else {
 				this.removeQueryProperties();
 				}
-			} else {
-				this.enableQuery = false;
-			}
+			// } else {
+			// 	this.enableQuery = false;
+			// }
 		},
 		enableSelection() {
 			this.singleClickSelect = new Select();
@@ -599,8 +711,8 @@ export default {
 				if (this.selectedFeatureProperties) {
 					this.selectedFeatureProperties = [];
 				}
-				console.log(e.selected);
 				const feature = e.selected[0];
+				console.log(feature);
 				if (feature) {
 					console.info("Got Selected Features! ", feature)
 					this.isPropertiesPanelVisible = true;
@@ -733,14 +845,29 @@ export default {
 			enableQueryProperties() {
 			console.info("Enable Query");
 			// console.log(this.items[this.selectedItem].name);
-			this.selectedFeatureProperties = [[11,22],[33,44]]
-			this.isPropertiesPanelVisible = true;
 			axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
+				console.log(response.data);
+				if(response.data!="0"){
 				this.isPropertiesPanelVisible = true;
 				this.selectedFeatureProperties = response.data['content']
 				this.title=response.data['title']
+				this.title.push({ text: 'Actions', value: 'actions', sortable: false })
 				Bus.$emit('header', this.title);
 				Bus.$emit('item', this.selectedFeatureProperties);
+				Bus.$emit('layername', this.items[this.selectedItem].name);
+				console.log('title',this.title);
+				}
+				else{
+					this.$message({
+                			message: "没有属性表",
+                			type: "error"
+              		});
+				}
+			}).catch(res=>{
+			this.$message({
+                			message: "查询错误",
+                			type: "error"
+              			});
 			});
 			if (this.singleClickSelect) {
 				console.log(this.singleClickSelect);
@@ -789,7 +916,13 @@ export default {
 					stroke: new Stroke({
 						color: '#1E90FF',
 						width: 2
-					})
+					}),
+					image: new CircleStyle({
+				      radius: 4,
+				      fill: new Fill({
+				        color: '#1E90FF',
+				      }),
+				    }),
 				})
 			})
 			this.map.addLayer(this.vector)
@@ -830,28 +963,43 @@ export default {
 					axios.post('api/Convexity',{'polygon':coord[0]}).then((response)=>{
 						console.log(response.data);
 						if (response.data =='True' ){
-							alert('凹多边形');
+							this.$message({
+                			message: "凹多边形",
+              			});
 						}
 						if (response.data =='False' ){
-							alert('凸多边形');
+							this.$message({
+                			message: "凸多边形",
+              			});
 						}
 					});
 				}
 				if(this.selectedalgorithm=='getposition'){
 					var features = this.source.getFeatures();
 					var coord = features[0].getGeometry().getCoordinates();
-					this.map.on('click',function(evt){
+					this.map.on('singleclick',function(evt){
 						console.log(evt.coordinate);
 						axios.post('api/getposition',{'polygon':coord[0],'point':evt.coordinate}).then((response)=>{
 						console.log(response.data);
 						if (response.data ==-1 ){
-							alert('点在多边形上');
+						// 	this.$message({
+                		// 	message: "点在多边形上",
+              			// });
+						  alert("点在多边形上");
+						  
 						}
 						else if (response.data ==1 ){
-							alert('点在多边形外');
+						// 	this.$message({
+                		// 	message: "点在多边形外",
+              			// });
+						  alert("点在多边形外");
+
 						}
 						else if (response.data ==0 ){
-							alert('点在多边形内');
+						// 	this.$message({
+                		// 	message: "点在多边形内",
+              			// });
+						  alert("点在多边形内");
 						}
 					});
 					})
@@ -860,13 +1008,20 @@ export default {
 				if(this.selectedalgorithm=='isvalid'){
 					var features = this.source.getFeatures();
 					var coord = features[0].getGeometry().getCoordinates();
+					console.log(coord);
 						axios.post('api/isvalid',{'polygon':coord[0]}).then((response)=>{
 						console.log(response.data);
 						if (response.data =='-1' ){
-							alert('多边形自相交');
+							this.$message({
+                			message: "多边形自相交",
+              			});
+						//   alert("多边形自相交");
 						}
 						else if (response.data =='1' ){
-							alert('多边形有效');
+							this.$message({
+                			message: "多边形有效",
+              			});
+						//   alert("多边形有效");
 						}
 					})
 					
@@ -877,46 +1032,60 @@ export default {
 					console.log(getArea(features[0].getGeometry()));
 					axios.post('api/cal_polygonarea',{'polygon':coord[0]}).then((response)=>{
 						console.log(response.data['area']);
-						alert('多边形面积为：'+response.data['area']+'平方公里');
+						this.$message({
+                			message: '多边形面积为：'+response.data['area']+'平方公里',
+              			});
 					});
 				}
 			}
 		},
 		// 保存绘制
 		saveDraw: function() {
+			if (this.draw) {
+				this.map.removeInteraction(this.draw)
+				this.map.removeInteraction(this.snap)
+				this.draw = null
+				this.snap = null
+			}
 			if (this.vector) {
 				this.$prompt('请输入图层名', '提示', {
           		confirmButtonText: '确定',
           		cancelButtonText: '取消',
         		}).then(({ value }) => {
+
 					this.map.removeLayer(this.vector)
          			this.layerName = value;
 					this.vector.values_.title =value;
-					console.log(this.vector);
 					this.map.addLayer(this.vector);
 					this.items = this.toList();
 					this.endDraw();
-					var source = this.vector.getSource();
 					let features = this.source.getFeatures()
-					console.log(features);
-					if (features.length > 0) {
-						for (var j = 0; j < features.length; j++) {
-							// 将3857坐标转换为4326坐标
-							let geo = features[j].getGeometry().transform(this.proj_m, this.proj)
-							// let geo = features[j].getGeometry()
-								axios.post('api/uploadgeojson',{'data':geo,'name':this.layerName }).then((response)=>{
-									alert("保存成功");
-								});
-							alert(geo)
+					var newForm = new GeoJSON();
+					var featColl = newForm.writeFeaturesObject(features);
+					console.log('json:',featColl );
+					// console.log(features);
+					// if (features.length > 0) {
+					// 	for (var j = 0; j < features.length; j++) {
+					// 		// 将3857坐标转换为4326坐标
+					// 		let geo = features[j].getGeometry().transform(this.proj_m, this.proj)
+					// 		console.log(geo);
+					// 	}
+					// }
+					axios.post('api/uploadgeojson',{'data':featColl,'name':this.layerName }).then((response)=>{
+						if(response.data=='1'){
+						this.$message({
+                			message: "保存成功",
+                			type: "success"
+              			});
 						}
-					}
-  	
-        		}).catch(() => {
-					this.$message({
-					type: 'info',
-					message: '取消输入'
-				});       
-				});
+						else if(response.data=='0'){
+						this.$message({
+                			message: "图层名重复",
+                			type: "error"
+              			});
+						}
+					});
+        		});
 
 			}
 			this.draw = null
@@ -979,6 +1148,7 @@ export default {
 #olmap {
 	position: relative;
 	z-index: 1;
+	width: 500px;
 }
 .mapselect {
 	position: absolute;

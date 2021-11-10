@@ -23,12 +23,14 @@
 
 <script>
 import Bus from '../assets/bus'
-    import {open} from 'shapefile'
+import {open} from 'shapefile'
+import axios from 'axios'
     export default {
         name: "Config",
         data(){
             return{
-                file:{}
+                file:{},
+                result:null
             }
         },
         methods:{
@@ -48,12 +50,28 @@ import Bus from '../assets/bus'
                             .then(source => source.read()
                                 .then(function log(result) {
                                     if (result.done) return;
+                                    console.log(result.value);
+                                    // axios.post('api/uploadgeojson',{'data':result.value,'name':name.split('.')[0] }).then((response)=>{
+                                    //     if(response.data=='1'){
+                                    //     this.$message({
+                                    //         message: "上传成功",
+                                    //         type: "success"
+                                    //     });
+                                    //     }
+                                    //     else if(response.data=='0'){
+                                    //     this.$message({
+                                    //         message: "图层名重复",
+                                    //         type: "error"
+                                    //     });
+                                    //     }
+                                    // });
+                                    Bus.$emit('send',false);
+                                    Bus.$emit('geojson',{'layername':name.split('.')[0],'data':result.value});
                                     return source.read().then(log);
                                 }))
                             .catch(error => console.error(error.stack));
                     }
-                    Bus.$emit('send',false);
-                    Bus.$emit('geojson',name.split('.')[0]);
+                
 
                 }
 

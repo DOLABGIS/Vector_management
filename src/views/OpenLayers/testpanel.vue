@@ -1,35 +1,21 @@
 <template>
-  <div id="properties-panel" v-show="visible">
+<div id="properties-panel" v-show="visible">
   <v-data-table
     :headers="headers"
     :items="desserts"
     sort-by="calories"
     class="elevation-1"
-    item-key="name"
-    :search="search"
   >
     <template v-slot:top>
       <v-toolbar
         flat
       >
-        <v-toolbar-title>Properties
-        </v-toolbar-title>
-        <v-card-title>
-      <v-spacer></v-spacer>
-      <v-divider
+        <v-toolbar-title>My CRUD</v-toolbar-title>
+        <v-divider
           class="mx-4"
           inset
           vertical
         ></v-divider>
-      <v-text-field
-        v-model="search"
-        append-icon="mdi-magnify"
-        label="Search"
-        single-line
-        hide-details
-      ></v-text-field>
-    </v-card-title>
-        
         <v-spacer></v-spacer>
         <v-dialog
           v-model="dialog"
@@ -37,7 +23,7 @@
         >
           <template v-slot:activator="{ on, attrs }">
             <v-btn
-              color="black"
+              color="primary"
               dark
               class="mb-2"
               v-bind="attrs"
@@ -48,9 +34,7 @@
           </template>
           <v-card>
             <v-card-title>
-              <span class="text-h5">
-                {{ formTitle }}
-                </span>
+              <span class="text-h5">{{ formTitle }}</span>
             </v-card-title>
 
             <v-card-text>
@@ -62,18 +46,8 @@
                     md="4"
                   >
                     <v-text-field
-                      label="gid"
-                      v-model="editedItem.gid"
-                    ></v-text-field>
-                  </v-col>
-                  <v-col
-                    cols="12"
-                    sm="6"
-                    md="4"
-                  >
-                  <v-text-field
-                      label="name"
                       v-model="editedItem.name"
+                      label="Dessert name"
                     ></v-text-field>
                   </v-col>
                   <v-col
@@ -81,9 +55,39 @@
                     sm="6"
                     md="4"
                   >
-                  <v-text-field
-                      label="value"
-                      v-model="editedItem.value"
+                    <v-text-field
+                      v-model="editedItem.calories"
+                      label="Calories"
+                    ></v-text-field>
+                  </v-col>
+                  <v-col
+                    cols="12"
+                    sm="6"
+                    md="4"
+                  >
+                    <v-text-field
+                      v-model="editedItem.fat"
+                      label="Fat (g)"
+                    ></v-text-field>
+                  </v-col>
+                  <v-col
+                    cols="12"
+                    sm="6"
+                    md="4"
+                  >
+                    <v-text-field
+                      v-model="editedItem.carbs"
+                      label="Carbs (g)"
+                    ></v-text-field>
+                  </v-col>
+                  <v-col
+                    cols="12"
+                    sm="6"
+                    md="4"
+                  >
+                    <v-text-field
+                      v-model="editedItem.protein"
+                      label="Protein (g)"
                     ></v-text-field>
                   </v-col>
                 </v-row>
@@ -149,32 +153,46 @@
   </div>
 </template>
 
+
 <script>
-import axios from 'axios'
 import Bus from '../../assets/bus'
+
 export default {
-  name: "PropertiesPanel",
   props: ["visible"],
- data: () => ({
+    data: () => ({
       dialog: false,
-      search:'',
       dialogDelete: false,
-      layername:'',
-      headers: [],
-      properties:[],
+      headers: [
+        {
+          text: 'Dessert (100g serving)',
+          align: 'start',
+          sortable: false,
+          value: 'name',
+        },
+        { text: 'Calories', value: 'calories' },
+        { text: 'Fat (g)', value: 'fat' },
+        { text: 'Carbs (g)', value: 'carbs' },
+        { text: 'Protein (g)', value: 'protein' },
+        { text: 'Actions', value: 'actions', sortable: false },
+      ],
       desserts: [],
       editedIndex: -1,
       editedItem: {
-        gid: 13,
         name: '',
-        value: 0,
+        calories: 0,
+        fat: 0,
+        carbs: 0,
+        protein: 0,
       },
       defaultItem: {
-        gid: 13,
         name: '',
-        value: 0,
+        calories: 0,
+        fat: 0,
+        carbs: 0,
+        protein: 0,
       },
     }),
+
     computed: {
       formTitle () {
         return this.editedIndex === -1 ? 'New Item' : 'Edit Item'
@@ -189,49 +207,104 @@ export default {
         val || this.closeDelete()
       },
     },
+
     created () {
-      Bus.$on('header',(val)=>{
-				this.headers = val
-			})
-      Bus.$on('item',(val1)=>{
-				this.desserts = val1
-			})
-      Bus.$on('layername',(val1)=>{
-				this.layername = val1
-			})
       this.initialize()
     },
+
     methods: {
       initialize () {
-        
+        this.desserts = [
+          {
+            name: 'Frozen Yogurt',
+            calories: 159,
+            fat: 6.0,
+            carbs: 24,
+            protein: 4.0,
+          },
+          {
+            name: 'Ice cream sandwich',
+            calories: 237,
+            fat: 9.0,
+            carbs: 37,
+            protein: 4.3,
+          },
+          {
+            name: 'Eclair',
+            calories: 262,
+            fat: 16.0,
+            carbs: 23,
+            protein: 6.0,
+          },
+          {
+            name: 'Cupcake',
+            calories: 305,
+            fat: 3.7,
+            carbs: 67,
+            protein: 4.3,
+          },
+          {
+            name: 'Gingerbread',
+            calories: 356,
+            fat: 16.0,
+            carbs: 49,
+            protein: 3.9,
+          },
+          {
+            name: 'Jelly bean',
+            calories: 375,
+            fat: 0.0,
+            carbs: 94,
+            protein: 0.0,
+          },
+          {
+            name: 'Lollipop',
+            calories: 392,
+            fat: 0.2,
+            carbs: 98,
+            protein: 0,
+          },
+          {
+            name: 'Honeycomb',
+            calories: 408,
+            fat: 3.2,
+            carbs: 87,
+            protein: 6.5,
+          },
+          {
+            name: 'Donut',
+            calories: 452,
+            fat: 25.0,
+            carbs: 51,
+            protein: 4.9,
+          },
+          {
+            name: 'KitKat',
+            calories: 518,
+            fat: 26.0,
+            carbs: 65,
+            protein: 7,
+          },
+        ]
       },
+
       editItem (item) {
         this.editedIndex = this.desserts.indexOf(item)
         this.editedItem = Object.assign({}, item)
         this.dialog = true
       },
+
       deleteItem (item) {
         this.editedIndex = this.desserts.indexOf(item)
         this.editedItem = Object.assign({}, item)
         this.dialogDelete = true
       },
-      deleteItemConfirm () {
-        axios.post('api/delete',{'layer':this.layername,'gid':this.desserts[this.editedIndex].gid}).then((response)=>{
-          // delete成功返回"1"，否则返回0
-          if(response.data!="0"){
-            Bus.$emit('delete_item',{'layername':this.layername,'data':response.data});
-          }
-			  }).catch(res=>{
-			  this.$message({
-                			message: "删除失败",
-                			type: "error"
-        });
-			});
-        this.desserts.splice(this.editedIndex, 1);
-        this.closeDelete();
-        // Bus.$emit('editedIndex', this.desserts[this.editedIndex].protein);
 
+      deleteItemConfirm () {
+        this.desserts.splice(this.editedIndex, 1)
+        this.closeDelete()
       },
+
       close () {
         this.dialog = false
         this.$nextTick(() => {
@@ -239,6 +312,7 @@ export default {
           this.editedIndex = -1
         })
       },
+
       closeDelete () {
         this.dialogDelete = false
         this.$nextTick(() => {
@@ -246,25 +320,18 @@ export default {
           this.editedIndex = -1
         })
       },
+
       save () {
         if (this.editedIndex > -1) {
           Object.assign(this.desserts[this.editedIndex], this.editedItem)
-          axios.post('api/update',{'layer':this.layername,'content':this.desserts[this.editedIndex]}).then((response)=>{
-          // update成功返回"1"，否则返回0
-			    }).catch(res=>{
-			  this.$message({
-                			message: "更新失败",
-                			type: "error"
-        });})
         } else {
           this.desserts.push(this.editedItem)
         }
         this.close()
       },
     },
-    }
+  }
 </script>
-
 <style scoped>
 #properties-panel {
   width: 30%;

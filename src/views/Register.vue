@@ -26,6 +26,7 @@
 </template>
 
 <script>
+import axios from 'axios'
 export default {
   name: "register",
   data() {
@@ -72,21 +73,29 @@ export default {
     submitForm(formName) {
       this.$refs[formName].validate(valid => {
         if (valid) {
-          this.$message({
+          // this.$message({
+          //       message: "注册成功！",
+          //       type: "success"
+          //     });
+            axios
+            .post("/api/users/register", this.registerUser)
+            .then(res => {
+              // 注册成功
+              if(res.data =='1'){
+              this.$message({
                 message: "注册成功！",
                 type: "success"
               });
               this.$router.push("/login");
-          // this.$axios
-          //   .post("/api/users/register", this.registerUser)
-          //   .then(res => {
-          //     // 注册成功
-          //     this.$message({
-          //       message: "注册成功！",
-          //       type: "success"
-          //     });
-          //     this.$router.push("/login");
-          //   });
+              }
+              else{
+                this.$message({
+                message: "邮箱已被注册",
+                type: "error"
+              });
+              }
+            });
+
         } else {
           console.log("error submit!!");
           return false;

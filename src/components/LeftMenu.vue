@@ -21,6 +21,12 @@
                                       <i class="fa fa-margin fa-server"></i>
                   <i class="el-icon-map-location"></i>
                   <span slot="title">保存文件</span>
+                  <!-- <input id="fileInput" type="file"   v-on:change="downloadshp()"/>
+                   -->
+                  <input type="file" id="file" hidden @change="fileChange" webkitdirectory>
+
+
+
                   <!-- <template slot="title">
 
                     保存文件</template> -->
@@ -54,6 +60,7 @@ export default {
   data() {
     return {
       isCollapse: false,
+      imgSavePath:'',
       isShow:false,
       items: [
         {
@@ -104,15 +111,29 @@ export default {
       Bus.$emit('send',this.isShow);
     },
     download(){
-
+      // Bus.$emit('download',true);
+      var file = document.getElementById('file')
+      file.click()
     },
+    fileChange(e) {
+      try {
+        const fu = document.getElementById('file')
+        if (fu == null) return
+        this.imgSavePath = fu.files[0].path
+        console.log(fu.files[0].path)
+      } catch (error) {
+        console.debug('choice file err:', error)
+      }
+    },
+
+
     downloadshp(){
       
     }
   }
 };
 </script>
-<style  scoped>
+<style lang="less" scoped>
 .el-aside {
   position: fixed;
   top: 70px;
@@ -120,6 +141,9 @@ export default {
   min-height: 100%;
   background-color: #324057;
   z-index: 99;
+    .el-menu {
+        border-right: none;
+    }
 }
 
 .el-main {

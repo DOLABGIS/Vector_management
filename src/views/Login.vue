@@ -57,25 +57,27 @@ export default {
       this.$refs[formName].validate(valid => {
         if (valid) {
           // this.$router.push("/index")
-          axios
-            .post("/users/login", this.loginUser)
-            .then(res => {
+          axios.post("/api/users/login", this.loginUser).then(res => {
+              if (res.data=='2')
+              {
+              this.$router.push("/index")
+              }
+              if (res.data=='1')
+              {
+              // this.$router.push("/index")
+              this.$message({
+                message: "密码错误",
+                type: "error"
+              });
+              }
               if (res.data=='0')
               {
-                
+              // this.$router.push("/index")
+              this.$message({
+                message: "账户不存在",
+                type: "error"
+              });
               }
-              // // console.log(res)
-              // //token处理
-              // const { token } = res.data
-              // //存储到localstorage里
-              // localStorage.setItem("eletoken", token)
-              // //解析token
-              // const decode = jwt_decode(token)
-              // console.log(decode)
-              //  // 存储数据到VUEX中 
-              // this.$store.dispatch("setIsAutnenticated", !this.isEmpty(decode))
-              // this.$store.dispatch("setUser", decode)
-              this.$router.push("/index")
             })
         } else {
           console.log("error submit!!")
