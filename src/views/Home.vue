@@ -135,7 +135,7 @@
 <script>
 import Map from 'ol/Map'
 import View from 'ol/View'
-import { Draw, Modify, Snap, Select} from 'ol/interaction'
+import { Draw, Modify, Snap, Select,DragBox} from 'ol/interaction'
 import { Tile as TileLayer, Vector as VectorLayer } from 'ol/layer'
 import { OSM, TileArcGISRest, Vector as VectorSource } from 'ol/source'
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style'
@@ -152,6 +152,7 @@ import axios from 'axios'
 import Openfile from './upload.vue'
 import download from './download.vue'
 import {getArea, getLength} from 'ol/sphere';
+import {platformModifierKeyOnly} from 'ol/events/condition';
 // import panel from '../panel.vue'
 export default {
 	components: {propertiPanel,testpanel,Openfile,download},
@@ -256,6 +257,8 @@ export default {
 			properties:null,
 			title:null,
 			vectorla:null,
+			propertylayer:null,
+			querylayer:null
 		}
 	},
 	created() {
@@ -276,18 +279,22 @@ export default {
 				}),
 				projection: this.proj_m,
 				zIndex:10,
-				style:  new Style({
-              stroke: new Stroke({
-                  color: 'rgba(121,121,125,1.0)',
-                  lineDash: null,
-                  lineCap: 'butt',
-                  lineJoin: 'miter',
-                  width: 0,
-              }),
-              fill: new Fill({
-                color: '#0d0887',
-              }),
-			})})
+				style: new Style({
+					fill: new Fill({
+						color: 'rgba(30, 144, 255, 0.3)'
+					}),
+					stroke: new Stroke({
+						color: '#1E90FF',
+						width: 2
+					}),
+					image: new CircleStyle({
+				      radius: 4,
+				      fill: new Fill({
+				        color: '#1E90FF',
+				      }),
+				    }),
+				})
+			})
 			this.map.addLayer(vectorlayer);
 			this.items = this.toList();
 			}) 
@@ -297,16 +304,15 @@ export default {
 		this.initMap();
 		Bus.$on('delete_item',(val)=>{
 			this.map.getLayers().forEach(function (layer) {
-			if (layer.get('name') != undefined && layer.get('title') === val.layername) {
+			if ( layer.get('title') === val.layername) {
 				// layersToRemove.push(layer);
+				console.log('layer',val.data[val.layername][0]);
 				layer.getSource().clear();
-				var features = (new GeoJSON()).readFeatures(val.data, {featureProjection:"EPSG:3857"});
+				var features = (new GeoJSON()).readFeatures(val.data[val.layername][0], {featureProjection:"EPSG:3857"});
 				layer.getSource().addFeatures(features);
+				layer.getSource().refresh()
 			}
 		});
-		// this.map..getSource().clear();
-		// var features = (new GeoJSON()).readFeatures(val, {featureProjection:"EPSG:3857"});
-		// this.vectorla.getSource().addFeatures(features);
 			})
 	},
 	methods: {
@@ -317,14 +323,51 @@ export default {
         		}).then(({ value }) => {
 
 				axios.post('api/query',{'sql':value }).then((response)=>{
+					if(response.data!=0){
 				// 返回符合查询条件的table，格式和查询图层的属性表一样（attr_table)
+					this.map.removeLayer(this.querylayer)
+					this.querylayer  = new VectorLayer({
+						source:new VectorSource({
+						features: new GeoJSON().readFeatures(response.data.geojson,{
+							featureProjection:"EPSG:3857"
+						})
+						}),
+						projection: this.proj_m,
+						zIndex:10,
+						style: new Style({
+						fill: new Fill({
+							color: 'rgba(220, 220, 170,0.8)'
+						}),
+						stroke: new Stroke({
+							color: 'rgba(220, 220, 170, 1)',
+							width: 2
+						}),
+						image: new CircleStyle({
+					      radius: 4,
+					      fill: new Fill({
+					        color: 'rgba(220, 220, 170, 1)',
+					      }),
+					    }),
+					})
+						})
+				this.map.addLayer(this.querylayer);		
+				console.log(response.data);
+				this.isPropertiesPanelVisible = true;
+				this.selectedFeatureProperties = response.data.attr_table['content']
+				this.title=response.data.attr_table['title']
+				this.title.push({ text: 'Actions', value: 'actions', sortable: false })
+				Bus.$emit('header', this.title);
+				Bus.$emit('item', this.selectedFeatureProperties);
+				Bus.$emit('layername', this.items[this.selectedItem].name);						
+					}
+
 				});
         		});
 		},
 		downloadshp(){
                 var element = document.createElement('a');
 				var name =this.items[this.selectedItem].name +'.json'
-				let features = this.vectorla.getSource().getFeatures()
+				let features = this.items[this.selectedItem].layer.getSource().getFeatures()
 				var newForm = new GeoJSON();
 				var featColl = newForm.writeFeaturesObject(features);
 				console.log(featColl);
@@ -363,60 +406,67 @@ export default {
 				source: this.tdtlabeldz,
 				projection: this.proj_m
 			})
-			// this.vectorla  = new VectorLayer({
-			// 	title:"wuhanaaa",
-			// 	source:new VectorSource({
-			// 		// url:jsondata,
-			// 		// format: new GeoJSON()
-			// 		features: new GeoJSON().readFeatures(jsondata,{
-    		// 			featureProjection:"EPSG:3857"
-			// 		})
-			// 	}),
-			// 	projection: this.proj_m,
-			// 	zIndex:10,
-			// 	style:  new Style({
-            //   stroke: new Stroke({
-            //       color: 'rgba(121,121,125,1.0)',
-            //       lineDash: null,
-            //       lineCap: 'butt',
-            //       lineJoin: 'miter',
-            //       width: 0,
-            //   }),
-            //   fill: new Fill({
-            //     color: '#0d0887',
-            //   }),
-			// })})
+			this.map.addLayer(this.mapLayer)
+			this.map.addLayer(this.mapLayerlabel)
 			axios.get('api/initial').then(response=>{
 				var layers = response.data;
-				this.map.addLayer(this.mapLayer)
-				this.map.addLayer(this.mapLayerlabel)
+
 				for (var item in layers)
-				{ 
-					console.log(item);
-					console.log(layers[item][0]);
-					// console.log(Object.keys(item));
-					var vector_layer  = new VectorLayer({
-					title:item,
-					source:new VectorSource({
-					features: new GeoJSON().readFeatures(layers[item][0],{
-    					featureProjection:"EPSG:3857"
+				{
+					console.log(layers[item]);
+					if(layers[item].features!=null) {
+						var vector_layer  = new VectorLayer({
+						title:item,
+						source:new VectorSource({
+						features: new GeoJSON().readFeatures(layers[item],{
+							featureProjection:"EPSG:3857"
+						})
+						}),
+						projection: this.proj_m,
+						zIndex:10,
+						style: new Style({
+						fill: new Fill({
+							color: 'rgba(30, 144, 255, 0.3)'
+						}),
+						stroke: new Stroke({
+							color: '#1E90FF',
+							width: 2
+						}),
+						image: new CircleStyle({
+					      radius: 4,
+					      fill: new Fill({
+					        color: '#1E90FF',
+					      }),
+					    }),
 					})
-					}),
-					projection: this.proj_m,
-					zIndex:10,
-					style:  new Style({
-              		stroke: new Stroke({
-                  	color: 'rgba(121,121,125,1.0)',
-                  	lineDash: null,
-                  	lineCap: 'butt',
-                  	lineJoin: 'miter',
-                  	width: 0,
-              		}),
-              		fill: new Fill({
-                		color: '#0d0887',
-              			}),
-					})})
-				this.map.addLayer(vector_layer)
+						})
+					this.map.addLayer(vector_layer)
+					
+					}
+					else{
+						var vector_layer  = new VectorLayer({
+						title:item,
+						source:new VectorSource(),
+						projection: this.proj_m,
+						zIndex:10,
+						style: new Style({
+						fill: new Fill({
+							color: 'rgba(30, 144, 255, 0.3)'
+						}),
+						stroke: new Stroke({
+							color: '#1E90FF',
+							width: 2
+						}),
+						image: new CircleStyle({
+					      radius: 4,
+					      fill: new Fill({
+					        color: '#1E90FF',
+					      }),
+					    }),
+					})
+						})
+					this.map.addLayer(vector_layer)
+					}
 				}
 //将图层加载到地图对象
 
@@ -670,6 +720,25 @@ export default {
 		},
 		//删除图层
 		deleteLayer() {
+			console.log(this.selectedItem);
+
+			axios.post('api/drop',{'layer':this.items[this.selectedItem].name }).then((response)=>{
+					if(response.data!="0")
+					{
+						this.$message({
+                			message: "删除成功",
+                			type: "success"
+              			});
+					}
+					else{
+
+						this.$message({
+                			message: "图层不存在",
+                			type: "error"
+              			});
+
+					}				
+				});
 			this.map.removeLayer(this.items[this.selectedItem].layer);
 			this.items.splice(this.selectedItem, 1);
 			this.refreshItems();
@@ -716,24 +785,81 @@ export default {
 				if (feature) {
 					console.info("Got Selected Features! ", feature)
 					this.isPropertiesPanelVisible = true;
-					Object.getOwnPropertyNames(feature.getProperties()).forEach(key => {
-					key = key.toString();
-					console.log(key);
-					if (key !== "geometry" && key !== "childrenNum"&& key!== "parent") {
-						const value = feature.getProperties()[key] || "null";
-						this.selectedFeatureProperties.push({
-						id: shortid(),
-						name: key,
-						value: value
-						});
+					// Object.getOwnPropertyNames(feature.getProperties()).forEach(key => {
+					// key = key.toString();
+					// if (key !== "geometry" && key !== "childrenNum"&& key!== "parent") {
+					// 	const value = feature.getProperties()[key] || "null";
+					// 	console.log(value);
+					// 	this.selectedFeatureProperties[0].key = value;
+					// }
+
+					// });
+					var item={};
+					for (var fea in feature.values_){
+						fea = fea.toString();
+						if(fea!=='geometry'){
+						console.log(feature.values_[fea]);
+
+							item[fea] = feature.values_[fea];
+						}
 					}
-					});
+					// var newfeature = feature.values_
+					// delete newfeature.geometry //true
+					console.log('selectedFeatureProperties',item);
+					Bus.$emit('item',[item]);
 				} else {
 					console.warn("Nothing Selected!");
 					this.isPropertiesPanelVisible = false;
 				}
 				});
 			}
+			const dragBox = new DragBox({
+				condition: platformModifierKeyOnly,
+				});
+
+			this.map.addInteraction(dragBox);
+			dragBox.on('boxend', (e) => {
+				// features that intersect the box geometry are added to the
+				// collection of selected features
+
+				// if the view is not obliquely rotated the box geometry and
+				// its extent are equalivalent so intersecting features can
+				// be added directly to the collection
+				const rotation = this.map.getView().getRotation();
+				const oblique = rotation % (Math.PI / 2) !== 0;
+				const candidateFeatures = oblique ? [] : selectedFeatures;
+				const extent = dragBox.getGeometry().getExtent();
+				const feature = e.selected[0];
+				console.log(feature);
+				// vectorSource.forEachFeatureIntersectingExtent(extent, function (feature) {
+				// 	candidateFeatures.push(feature);
+				// });
+
+				// // when the view is obliquely rotated the box extent will
+				// // exceed its geometry so both the box and the candidate
+				// // feature geometries are rotated around a common anchor
+				// // to confirm that, with the box geometry aligned with its
+				// // extent, the geometries intersect
+				// if (oblique) {
+				// 	const anchor = [0, 0];
+				// 	const geometry = dragBox.getGeometry().clone();
+				// 	geometry.rotate(-rotation, anchor);
+				// 	const extent = geometry.getExtent();
+				// 	candidateFeatures.forEach(function (feature) {
+				// 	const geometry = feature.getGeometry().clone();
+				// 	geometry.rotate(-rotation, anchor);
+				// 	if (geometry.intersectsExtent(extent)) {
+				// 		selectedFeatures.push(feature);
+				// 	}
+				// 	});
+				// }
+				});
+
+				// clear selection when drawing a new box and when clicking on the map
+				dragBox.on('boxstart', function () {
+				selectedFeatures.clear();
+				});
+
 		},
 		removeSelection() {
 			if (this.singleClickSelect) {
@@ -855,7 +981,7 @@ export default {
 				Bus.$emit('header', this.title);
 				Bus.$emit('item', this.selectedFeatureProperties);
 				Bus.$emit('layername', this.items[this.selectedItem].name);
-				console.log('title',this.title);
+				console.log('title',this.selectedFeatureProperties);
 				}
 				else{
 					this.$message({
@@ -1061,29 +1187,30 @@ export default {
 					this.endDraw();
 					let features = this.source.getFeatures()
 					var newForm = new GeoJSON();
-					var featColl = newForm.writeFeaturesObject(features);
-					console.log('json:',featColl );
-					// console.log(features);
+					console.log(features);
+					// let trans_feature = []
 					// if (features.length > 0) {
 					// 	for (var j = 0; j < features.length; j++) {
 					// 		// 将3857坐标转换为4326坐标
 					// 		let geo = features[j].getGeometry().transform(this.proj_m, this.proj)
-					// 		console.log(geo);
+					// 		trans_feature.push(geo);
 					// 	}
 					// }
+					// console.log('trans',features);
+					var featColl = newForm.writeFeaturesObject(features);
 					axios.post('api/uploadgeojson',{'data':featColl,'name':this.layerName }).then((response)=>{
-						if(response.data=='1'){
-						this.$message({
-                			message: "保存成功",
-                			type: "success"
-              			});
-						}
-						else if(response.data=='0'){
-						this.$message({
-                			message: "图层名重复",
-                			type: "error"
-              			});
-						}
+						// if(response.data=='1'){
+						// this.$message({
+                		// 	message: "保存成功",
+                		// 	type: "success"
+              			// });
+						// }
+						// else if(response.data=='0'){
+						// this.$message({
+                		// 	message: "图层名重复",
+                		// 	type: "error"
+              			// });
+						// }
 					});
         		});
 

@@ -7,8 +7,10 @@
                    accept="shp"
                    :on-preview="handlePreview"
                    :on-remove="handleRemove"
-                   :limit="1"
+                   :before-remove="beforeRemove"
+                   multiple
                    :on-change="bind"
+                   :file-list="fileList"
                    class=" upload"
         >
             <i class="el-icon-upload"></i>
@@ -22,59 +24,128 @@
 </template>
 
 <script>
+
 import Bus from '../assets/bus'
-import {open} from 'shapefile'
+import { OSM, TileArcGISRest, Vector as VectorSource } from 'ol/source'
+import {open,read,openDbf} from 'shapefile'
+import GeoJSON from "ol/format/GeoJSON"
 import axios from 'axios'
     export default {
         name: "Config",
         data(){
             return{
                 file:{},
-                result:null
+                result:null,
+                result2:null,
+                fileList:[],
             }
         },
         methods:{
             config() {
-                const name=this.file.name
-                const extension=name.split('.')[1]
-                if('shp'!==extension){
-                    this.$alert('文件不是shp文件！请重新选择文件', {
-                        confirmButtonText: '确定'
-                    })
-                }else {
-                    const reader=new FileReader()
-                    const  fileData=this.file.raw
-                    reader.readAsArrayBuffer(fileData)
-                    reader.onload = function(e){
-                        open(this.result)
-                            .then(source => source.read()
-                                .then(function log(result) {
-                                    if (result.done) return;
-                                    console.log(result.value);
-                                    // axios.post('api/uploadgeojson',{'data':result.value,'name':name.split('.')[0] }).then((response)=>{
-                                    //     if(response.data=='1'){
-                                    //     this.$message({
-                                    //         message: "上传成功",
-                                    //         type: "success"
-                                    //     });
-                                    //     }
-                                    //     else if(response.data=='0'){
-                                    //     this.$message({
-                                    //         message: "图层名重复",
-                                    //         type: "error"
-                                    //     });
-                                    //     }
-                                    // });
-                                    Bus.$emit('send',false);
-                                    Bus.$emit('geojson',{'layername':name.split('.')[0],'data':result.value});
-                                    return source.read().then(log);
-                                }))
-                            .catch(error => console.error(error.stack));
+                var opts={'shp':null,'dbf':null}
+                const reader=new FileReader()
+                var index = 0;
+                var index2 = 1;
+                var layername=''
+                console.log(this.file);
+                for(var file in this.file){
+                    const name=this.file[file].name
+                    const extension=name.split('.')[1]
+                    if (extension=='shp'){
+                        opts.shp= this.file[file] 
+                        layername = this.file[file].name.split('.')[0]
+                        const  fileData=this.file[file].raw
+                        reader.readAsArrayBuffer(fileData)
+                        index = file;
+                    };
+                    if (extension=='dbf'){
+                        opts.dbf= this.file[file] 
+                        const  fileData=this.file[file].raw
+                        index2 = file;
+                    };
                     }
                 
 
+                var shparray, dbfarray;
+                var newfile = this.file[index2].raw;
+                var oldfile = this.file[index].raw;
+                var finaljson;
+                reader.onload = function() {
+                read(this.result)
+                .then(geoJson => {
+                    console.log('1.geoJson',geoJson);
+                Bus.$emit('send',false);
+                finaljson = geoJson;
+                var reader2 = new FileReader();
+                var i=0;
+                reader2.readAsArrayBuffer(newfile);
+                reader2.onload=function(evt){
+                    dbfarray = evt.target.result;
+                    openDbf(dbfarray, {encoding: "gbk"}).then(source => source.read()
+                    .then(function log(result){
+                             if (result.done) return;
+                            finaljson.features[i++].properties=result.value;
+                            // axios.post('api/upload', {'layername':layername,'data':result.value}).then(res => {
+                            // console.log(res.data);
+                            // })
+                            // console.log(feature);
+                            return source.read().then(log);
+                    })
+                  
+                    )
+                    }
+                
+                reader2.onloadend = function(evt){
+                        axios.post('api/uploadgeojson', {'name':layername,'data':finaljson}).then(res => {
+                            console.log(res.data);
+                            })
+                    Bus.$emit('geojson',{'layername':layername,'data':finaljson});
+
                 }
 
+        //         axios.post('api/upload', {'layername':layername,'data':finaljson.features[0]}).then(res => {
+        //         // console.log('finaljson',finaljson.features[0].properties);
+        //         console.log(res.data);
+        // })
+                }
+                )}
+                // var featurelist = [];
+                // var source1 = new VectorSource({
+                //     wrapX: false
+                // });
+                // reader.onload = function(e){
+                //     shparray = e.target.result;
+                //     console.log('shparray',shparray);
+                //     var reader2 = new FileReader();
+
+                //     reader2.readAsArrayBuffer(newfile);
+                //     reader2.onload=function(evt){
+                //         dbfarray = evt.target.result;
+                //         console.log('dbfarray',dbfarray)
+                //         open(shparray, dbfarray, {encoding: "gbk"}).then(source => source.read()
+                //         .then(function log(result){
+                //              if (result.done) return;
+                //             var feature = new GeoJSON().readFeature(result.value);
+                //             // featurelist.push(feature.values_);
+                //             source1.addFeature(feature);
+                //             return source.read().then(log);
+                //         }
+                //         )
+                        
+                //         )
+                //         // open(shparray, dbfarray, {encoding: "gbk"}).then(source => {
+                //         //     var feature = new GeoJSON().readFeatures(source);
+                //         //     console.log('feature',feature);
+
+                //         // }
+                //         // )
+                //     }
+
+                //     }
+                // console.log('source1',source1.getFeatures());
+                // axios.post('api/upload', {'layername':layername,'data':featurelist}).then(res => {
+                //     console.log(res.data);
+                // })
             },
             cancer(){
                     Bus.$emit('send',false);
@@ -87,10 +158,12 @@ import axios from 'axios'
             },
             bind(files, fileList){
                 //绑定文件
-                this.file=fileList[0]
+                this.file=fileList
                 //console.log(this.file)
-            }
-
+            },
+            beforeRemove(file, fileList) {
+                    return this.$confirm(`确定移除 ${ file.name }？`);
+                }
         }
     }
 </script>

@@ -20,6 +20,7 @@
     "mapbox-gl": "^1.6.1",
     "node-sass": "^6.0.1",
     "ol": "^5.3.3",
+    "shapefile": "^0.6.6",
     "shortid": "^2.2.16",
     "vue": "^2.6.10",
     "vue-router": "^3.0.3",
