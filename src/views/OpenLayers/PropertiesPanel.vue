@@ -62,7 +62,19 @@
                     md="4"
                   >
                     <v-text-field
-                      label="gid"
+                    v-for="(val,key) in editedItem"
+                      :key="key"
+                      :label="key"
+                    v-model="editedItem[key]"
+                    ></v-text-field>
+                  </v-col>
+                  <!-- <v-col
+                    cols="12"
+                    sm="6"
+                    md="4"
+                  >
+                  <v-text-field
+                      label="name"
                       v-model="editedItem.gid"
                     ></v-text-field>
                   </v-col>
@@ -72,20 +84,10 @@
                     md="4"
                   >
                   <v-text-field
-                      label="name"
-                      v-model="editedItem.name"
-                    ></v-text-field>
-                  </v-col>
-                  <v-col
-                    cols="12"
-                    sm="6"
-                    md="4"
-                  >
-                  <v-text-field
                       label="value"
-                      v-model="editedItem.value"
+                      v-model="editedItem.dist1"
                     ></v-text-field>
-                  </v-col>
+                  </v-col> -->
                 </v-row>
               </v-container>
             </v-card-text>
@@ -165,14 +167,10 @@ export default {
       desserts: [],
       editedIndex: -1,
       editedItem: {
-        gid: 13,
-        name: '',
-        value: 0,
+
       },
       defaultItem: {
-        gid: 13,
-        name: '',
-        value: 0,
+
       },
     }),
     computed: {
@@ -195,6 +193,17 @@ export default {
 			})
       Bus.$on('item',(val1)=>{
 				this.desserts = val1
+        if(val1.length>0){
+          for(var key in val1[0]){
+              if(typeof(val1[0][key]) == 'number'){
+                this.defaultItem[key] =0
+              }
+              if(typeof(val1[0][key]) == 'string'){
+                this.defaultItem[key] =''
+              }
+          }
+        }
+        this.editedItem = this.defaultItem;
 			})
       Bus.$on('layername',(val1)=>{
 				this.layername = val1
@@ -206,8 +215,10 @@ export default {
         
       },
       editItem (item) {
+
         this.editedIndex = this.desserts.indexOf(item)
         this.editedItem = Object.assign({}, item)
+        console.log('item',this.editedItem);
         this.dialog = true
       },
       deleteItem (item) {
@@ -257,7 +268,17 @@ export default {
                 			type: "error"
         });})
         } else {
+          // new item
+          // Bus.$emit('newitem',{'layername':this.layername,'item':this.editedItem})
+          axios.post('api/insert',{'layer':this.layername,'content':this.editedItem}).then((response)=>{
+          // update成功返回"1"，否则返回0
+			    }).catch(res=>{
+			  this.$message({
+                			message: "插入失败",
+                			type: "error"
+        });})
           this.desserts.push(this.editedItem)
+
         }
         this.close()
       },
@@ -267,7 +288,7 @@ export default {
 
 <style scoped>
 #properties-panel {
-  width: 30%;
+  width: 40%;
   max-width: 70%;
   right: 0px;
   top: 10%;

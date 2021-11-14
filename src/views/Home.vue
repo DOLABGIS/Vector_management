@@ -191,10 +191,10 @@ export default {
 					value:'getposition',
 					label:'点与多边形关系'
 				},
-				{
-					value:'isvalid',
-					label:'多边形是否自相交'
-				},
+				// {
+				// 	value:'isvalid',
+				// 	label:'多边形是否自相交'
+				// },
 				{
 					value:'Area',
 					label:'多边形面积'
@@ -269,6 +269,35 @@ export default {
 		Bus.$on('download',(val)=>{
 			// $refs.file.click();
 			})	
+		Bus.$on('newitem',(val)=>{
+			// $refs.file.click();
+			this.map.getLayers().forEach(function (layer) {
+			if ( layer.get('title') === val.layername) {
+				// layersToRemove.push(layer);
+				let geomType = "";
+      			if (layer.getSource().getFeatures()[0] !== undefined) {
+        		const geometry =  layer.getSource().getFeatures()[0].getGeometry();
+        		geomType = geometry.constructor.name;
+      			}
+				this.selectedtype = geomType;
+				console.info(geomType);
+				let vectorSource = layer.getSource();
+
+				this.draw = new Draw({
+					source: vectorSource,
+					type: geomType
+				});
+				this.map.addInteraction(this.draw);
+				this.draw.on("drawend", (e) => {
+					this.addedFeatures.push(e.feature);
+				});
+				this.snap = new Snap({
+					source: vectorSource
+				});
+				this.mapObject.addInteraction(this.snap);
+			}
+		});
+			})
 		Bus.$on('geojson',(val)=>{
 			var vectorlayer  = new VectorLayer({
 				title:val.layername,
@@ -306,7 +335,6 @@ export default {
 			this.map.getLayers().forEach(function (layer) {
 			if ( layer.get('title') === val.layername) {
 				// layersToRemove.push(layer);
-				console.log('layer',val.data[val.layername][0]);
 				layer.getSource().clear();
 				var features = (new GeoJSON()).readFeatures(val.data[val.layername][0], {featureProjection:"EPSG:3857"});
 				layer.getSource().addFeatures(features);
@@ -351,7 +379,6 @@ export default {
 					})
 						})
 				this.map.addLayer(this.querylayer);		
-				console.log(response.data);
 				this.isPropertiesPanelVisible = true;
 				this.selectedFeatureProperties = response.data.attr_table['content']
 				this.title=response.data.attr_table['title']
@@ -370,7 +397,6 @@ export default {
 				let features = this.items[this.selectedItem].layer.getSource().getFeatures()
 				var newForm = new GeoJSON();
 				var featColl = newForm.writeFeaturesObject(features);
-				console.log(featColl);
 				element.setAttribute('href', 'data:text/plain;charset=utf-8,'+encodeURIComponent(JSON.stringify(featColl)));
                 element.setAttribute('download', name);
                 document.body.appendChild(element);
@@ -413,7 +439,6 @@ export default {
 
 				for (var item in layers)
 				{
-					console.log(layers[item]);
 					if(layers[item].features!=null) {
 						var vector_layer  = new VectorLayer({
 						title:item,
@@ -481,7 +506,6 @@ export default {
 					editable: true
 				});
 			});
-			console.log(layerList);
 			layerList.reverse();
 			this.items = layerList;
 			this.layerNumber = this.items.length;
@@ -1257,6 +1281,30 @@ export default {
 		selectedItem: {
 			handler(newValue) {
 				this.isVisible = !this.items[newValue].visible;
+				if(this.isPropertiesPanelVisible == true){
+				axios.post('api/attr_table',{'file_name':this.items[this.selectedItem].name}).then((response)=>{
+				if(response.data!="0"){
+				this.selectedFeatureProperties = response.data['content']
+				this.title=response.data['title']
+				this.title.push({ text: 'Actions', value: 'actions', sortable: false })
+				Bus.$emit('header', this.title);
+				Bus.$emit('item', this.selectedFeatureProperties);
+				Bus.$emit('layername', this.items[this.selectedItem].name);
+				console.log('title',this.selectedFeatureProperties);
+				}
+				else{
+					this.$message({
+                			message: "没有属性表",
+                			type: "error"
+              		});
+				}
+			}).catch(res=>{
+			this.$message({
+                			message: "查询错误",
+                			type: "error"
+              			});
+			});
+				}
 			},
 			deep: true
     },
