@@ -192,6 +192,7 @@ export default {
 				this.headers = val
 			})
       Bus.$on('item',(val1)=>{
+        console.log('PropertiesPanel Rogar!',val1);
 				this.desserts = val1
         if(val1.length>0){
           for(var key in val1[0]){

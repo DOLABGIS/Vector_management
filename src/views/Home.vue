@@ -30,6 +30,11 @@
 							<v-icon>{{ enableSelect ? "mdi-cursor-default-outline" : "mdi-cursor-default" }}</v-icon>
 						</v-btn>
 					</el-tooltip>
+					<el-tooltip class="item" effect="dark" content="框选" placement="bottom-start">
+						<v-btn x-small icon @click="switchFrameSelection">
+							<v-icon>{{ enableFrameSelect ? "mdi-square-outline" : "mdi-square" }}</v-icon>
+						</v-btn>
+					</el-tooltip>
 					<el-tooltip class="item" effect="dark" content="属性" placement="bottom-start">
 						<v-btn x-small icon @click="switchQueryMode">
 							<v-icon>{{ enableQuery ? "mdi-database-search-outline" : "mdi-database-search" }}</v-icon>
@@ -236,6 +241,7 @@ export default {
 			draw: null,
 			snap: null,
 			singleClickSelect: undefined,
+			dragBoxSelect: undefined,
 			layerNumber: 0,
       		visibleLayerNumber: 0,
 			isPropertiesPanelVisible: false,
@@ -251,6 +257,7 @@ export default {
 			isEditable: false,
 			enableDelete: false,
 			enableSelect: false,
+			enableFrameSelect: false,
 			enableQuery: false,
 			openDataSourceDialog: false,
 			saveEditingDialog: false,
@@ -781,6 +788,14 @@ export default {
 				this.removeSelection();
 			}
 		},
+		switchFrameSelection() {
+			this.enableFrameSelect = !this.enableFrameSelect;
+			if(this.enableSelect){
+				this.enableFrameSelection();
+			}else{
+				this.removeFrameSelection();
+			}
+		},
 		//切换查询模式
 		switchQueryMode() {
 			// if (this.enableSelect) {
@@ -798,6 +813,7 @@ export default {
 			this.singleClickSelect = new Select();
 			this.map.addInteraction(this.singleClickSelect);
 			console.log("Enable Selection");
+
 			if (this.singleClickSelect) {
 				console.log(this.singleClickSelect);
 				this.singleClickSelect.on('select', (e) => {
@@ -809,22 +825,12 @@ export default {
 				if (feature) {
 					console.info("Got Selected Features! ", feature)
 					this.isPropertiesPanelVisible = true;
-					// Object.getOwnPropertyNames(feature.getProperties()).forEach(key => {
-					// key = key.toString();
-					// if (key !== "geometry" && key !== "childrenNum"&& key!== "parent") {
-					// 	const value = feature.getProperties()[key] || "null";
-					// 	console.log(value);
-					// 	this.selectedFeatureProperties[0].key = value;
-					// }
-
-					// });
 					var item={};
 					for (var fea in feature.values_){
 						fea = fea.toString();
 						if(fea!=='geometry'){
 						console.log(feature.values_[fea]);
-
-							item[fea] = feature.values_[fea];
+						item[fea] = feature.values_[fea];
 						}
 					}
 					// var newfeature = feature.values_
@@ -837,53 +843,6 @@ export default {
 				}
 				});
 			}
-			const dragBox = new DragBox({
-				condition: platformModifierKeyOnly,
-				});
-
-			this.map.addInteraction(dragBox);
-			dragBox.on('boxend', (e) => {
-				// features that intersect the box geometry are added to the
-				// collection of selected features
-
-				// if the view is not obliquely rotated the box geometry and
-				// its extent are equalivalent so intersecting features can
-				// be added directly to the collection
-				const rotation = this.map.getView().getRotation();
-				const oblique = rotation % (Math.PI / 2) !== 0;
-				const candidateFeatures = oblique ? [] : selectedFeatures;
-				const extent = dragBox.getGeometry().getExtent();
-				const feature = e.selected[0];
-				console.log(feature);
-				// vectorSource.forEachFeatureIntersectingExtent(extent, function (feature) {
-				// 	candidateFeatures.push(feature);
-				// });
-
-				// // when the view is obliquely rotated the box extent will
-				// // exceed its geometry so both the box and the candidate
-				// // feature geometries are rotated around a common anchor
-				// // to confirm that, with the box geometry aligned with its
-				// // extent, the geometries intersect
-				// if (oblique) {
-				// 	const anchor = [0, 0];
-				// 	const geometry = dragBox.getGeometry().clone();
-				// 	geometry.rotate(-rotation, anchor);
-				// 	const extent = geometry.getExtent();
-				// 	candidateFeatures.forEach(function (feature) {
-				// 	const geometry = feature.getGeometry().clone();
-				// 	geometry.rotate(-rotation, anchor);
-				// 	if (geometry.intersectsExtent(extent)) {
-				// 		selectedFeatures.push(feature);
-				// 	}
-				// 	});
-				// }
-				});
-
-				// clear selection when drawing a new box and when clicking on the map
-				dragBox.on('boxstart', function () {
-				selectedFeatures.clear();
-				});
-
 		},
 		removeSelection() {
 			if (this.singleClickSelect) {
@@ -891,6 +850,47 @@ export default {
 			}
 			console.log("Remove Selection");
 			},
+		removeFrameSelection() {
+			if (this.dragBoxSelect) {
+				this.map.removeInteraction(this.dragBoxSelect);
+			}
+			console.log("Remove FrameSelection");
+		},
+		enableFrameSelection() {
+			this.dragBoxSelect = new Select();
+			this.map.addInteraction(this.dragBoxSelect);
+			const selectedFeatures = this.dragBoxSelect.getFeatures();
+			// a DragBox interaction used to select features by drawing boxes
+			var dragBox = new DragBox({
+			condition: platformModifierKeyOnly,
+			});
+			this.map.addInteraction(dragBox);
+			const dragBoxSource = this.items[this.selectedItem].layer.getSource();
+			dragBox.on('boxend', function () {
+			const extent = dragBox.getGeometry().getExtent();
+			dragBoxSource.forEachFeatureIntersectingExtent(extent, function (feature) {
+			selectedFeatures.push(feature);
+			});
+			console.log('selectedFeatures',selectedFeatures.array_);
+			const features = selectedFeatures.array_;
+			const items = [];
+			for(var fea in features){
+				const item={};
+				for(var fea_key in features[fea].values_){
+					fea_key=fea_key.toString();
+					if(fea_key!=='geometry'){
+						item[fea_key]=features[fea].values_[fea_key];
+					}	
+				}
+				items.push(item);		
+			}
+			console.log('items',items);
+			Bus.$emit('item',items);
+			});
+			dragBox.on('boxstart', function () {
+			selectedFeatures.clear();
+			});
+		},
 		enableEditing(selectedLayer, selectedLayerType = "") {
 			let vectorSource = selectedLayer.getSource();
 			this.modify = new Modify({
